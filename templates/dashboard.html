@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - eBay Exporter</title>
+</head>
+<body>
+    <h1>Dashboard</h1>
+    <p>You are successfully logged in.</p>
+    
+    <!-- This section will be developed in Milestone 3 & 5 -->
+    <div id="report-section">
+        <button id="generate-report-btn">Generate Item Specifics Report</button>
+        <div id="report-status"></div>
+    </div>
+
+    <hr>
+    <a href="{{ url_for('logout') }}">Logout</a>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+# Python virtual environment
+venv/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# IDE / Editor specific files
+.idea/
+.vscode/
+*.swp
+
+# Local secrets and config
+*.env
+secrets/
