@@ -9,10 +9,40 @@
     <h1>Dashboard</h1>
     <p>You are successfully logged in.</p>
     
-    <!-- This section will be developed in Milestone 3 & 5 -->
+    <!-- 报告生成和管理区域 -->
     <div id="report-section">
-        <button id="generate-report-btn">Generate Item Specifics Report</button>
-        <div id="report-status"></div>
+        <h2>库存报告管理</h2>
+        
+        <!-- 生成新报告 -->
+        <div style="margin-bottom: 20px;">
+            <button id="generate-report-btn">生成库存报告</button>
+            <button id="check-status-btn" style="display: none; margin-left: 10px;">检查任务状态</button>
+            <div id="report-status"></div>
+        </div>
+        
+        <!-- 查询特定任务 -->
+        <div style="margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px;">
+            <h3>通过任务ID查询</h3>
+            <input type="text" id="task-id-input" placeholder="输入任务ID" style="padding: 8px; width: 300px; margin-right: 10px;">
+            <button id="query-task-btn">查询任务状态</button>
+            <div id="task-query-result" style="margin-top: 10px;"></div>
+        </div>
+        
+        <!-- 获取最近的报告 -->
+        <div style="margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px;">
+            <h3>最近的报告</h3>
+            <label for="days-input">查询天数: </label>
+            <input type="number" id="days-input" value="7" min="1" max="30" style="padding: 5px; width: 60px; margin-right: 10px;">
+            <button id="get-recent-reports-btn">获取最近报告</button>
+            <div id="recent-reports-list" style="margin-top: 15px;"></div>
+        </div>
+        
+        <!-- Export buttons (initially hidden) -->
+        <div id="export-section" style="display: none; margin-top: 15px;">
+            <h3>导出报告</h3>
+            <a href="/export-csv" class="export-btn" style="margin-right: 10px; padding: 8px 16px; background-color: #28a745; color: white; text-decoration: none; border-radius: 4px;">导出为 CSV</a>
+            <a href="/export-excel" class="export-btn" style="padding: 8px 16px; background-color: #007bff; color: white; text-decoration: none; border-radius: 4px;">导出为 Excel</a>
+        </div>
     </div>
 
     <hr>
