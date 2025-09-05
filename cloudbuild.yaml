@@ -35,24 +35,10 @@ steps:
       '--set-secrets', 'EBAY_APP_ID=ebay-app-id:latest,EBAY_CERT_ID=ebay-cert-id:latest,EBAY_RU_NAME=ebay-ru-name:latest,SECRET_KEY=flask-secret-key:latest'
     ]
 
-# ビルドオプション
-options:
-  # マシンタイプを指定（パイロット用の経済的設定）
-  machineType: 'E2_STANDARD_4'
-  # ディスクサイズ（パイロット用に縮小）
-  diskSizeGb: 20
-  # ログ設定
-  logging: CLOUD_LOGGING_ONLY
-  # 並列実行
-  substitution_option: 'ALLOW_LOOSE'
-
 # 置換変数
 substitutions:
   _SERVICE_NAME: 'wood-ebay-app'
   _REGION: 'asia-northeast1'
-
-# タイムアウト（CPU集約的ビルドのため延長）
-timeout: '1200s'
 
 # ビルド成果物の保存
 artifacts:
