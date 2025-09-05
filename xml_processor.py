@@ -1,28 +1,13 @@
 import os
 import xml.etree.ElementTree as ET
 import zipfile
-import requests
+import subprocess
+import json
 from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 from typing import List, Dict, Optional
 import time
-
-# Set environment variables to disable SSL verification
-os.environ['PYTHONHTTPSVERIFY'] = '0'
-os.environ['CURL_CA_BUNDLE'] = ''
-os.environ['REQUESTS_CA_BUNDLE'] = ''
-
-# Import SSL modules after setting environment variables
-import ssl
-import urllib3
-
-# Disable all SSL warnings
-urllib3.disable_warnings()
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-# Completely bypass SSL verification
-ssl._create_default_https_context = ssl._create_unverified_context
 
 logger = logging.getLogger(__name__)
 
@@ -32,13 +17,6 @@ class XMLProcessor:
     def __init__(self, max_workers: int = 4, timeout: int = 300):
         self.max_workers = max_workers
         self.timeout = timeout
-        self.session = self._create_ssl_session()
-    
-    def _create_ssl_session(self):
-        """Create simple session with SSL verification disabled"""
-        session = requests.Session()
-        session.verify = False
-        return session
     
     def extract_item_ids_from_zip(self, zip_content: bytes) -> List[str]:
         """ZIPファイルからItemIDリストを抽出（最適化版）"""
@@ -128,17 +106,7 @@ class XMLProcessor:
         return results
     
     def _get_item_details_trading_api(self, item_id: str, auth_token: str) -> Optional[str]:
-        """Trading API GetItemを呼び出し（セッション使用）"""
-        headers = {
-            'X-EBAY-API-COMPATIBILITY-LEVEL': '1217',
-            'X-EBAY-API-DEV-NAME': os.environ.get('EBAY_APP_ID'),
-            'X-EBAY-API-CERT-NAME': os.environ.get('EBAY_CERT_ID'),
-            'X-EBAY-API-CALL-NAME': 'GetItem',
-            'X-EBAY-API-IAF-TOKEN': auth_token,
-            'X-EBAY-API-SITEID': '0',
-            'Content-Type': 'text/xml'
-        }
-        
+        """Trading API GetItemを呼び出し（curl使用でSSL問題回避）"""
         xml_request = f'''<?xml version="1.0" encoding="utf-8"?>
         <GetItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">
             <ItemID>{item_id}</ItemID>
@@ -147,15 +115,34 @@ class XMLProcessor:
         </GetItemRequest>'''
         
         try:
-            response = self.session.post(
-                'https://api.ebay.com/ws/api.dll',
-                headers=headers,
-                data=xml_request,
-                timeout=30
-            )
-            response.raise_for_status()
-            return response.text
-        except requests.RequestException as e:
+            # Use curl to bypass SSL recursion issues
+            cmd = [
+                'curl', '-s', '-k',  # -k to ignore SSL certificate errors
+                '--max-time', '30',
+                '-X', 'POST',
+                '-H', 'X-EBAY-API-COMPATIBILITY-LEVEL: 1217',
+                '-H', f'X-EBAY-API-DEV-NAME: {os.environ.get("EBAY_APP_ID")}',
+                '-H', f'X-EBAY-API-CERT-NAME: {os.environ.get("EBAY_CERT_ID")}',
+                '-H', 'X-EBAY-API-CALL-NAME: GetItem',
+                '-H', f'X-EBAY-API-IAF-TOKEN: {auth_token}',
+                '-H', 'X-EBAY-API-SITEID: 0',
+                '-H', 'Content-Type: text/xml',
+                '--data-raw', xml_request,
+                'https://api.ebay.com/ws/api.dll'
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            
+            if result.returncode == 0:
+                return result.stdout
+            else:
+                logger.error(f"curl failed for ItemID {item_id}: {result.stderr}")
+                return None
+                
+        except subprocess.TimeoutExpired:
+            logger.error(f"Trading API GetItem timeout (ItemID: {item_id})")
+            return None
+        except Exception as e:
             logger.error(f"Trading API GetItem 呼び出し失敗 (ItemID: {item_id}): {e}")
             return None
     
@@ -220,6 +207,5 @@ class XMLProcessor:
             return None
     
     def __del__(self):
-        """セッションのクリーンアップ"""
-        if hasattr(self, 'session'):
-            self.session.close()
+        """クリーンアップ（curl使用のため特に処理なし）"""
+        pass
