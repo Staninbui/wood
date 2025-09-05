@@ -47,9 +47,6 @@ class XMLProcessor:
                 kwargs['ssl_context'] = ssl.create_default_context()
                 kwargs['ssl_context'].check_hostname = False
                 kwargs['ssl_context'].verify_mode = ssl.CERT_NONE
-                kwargs['pool_connections'] = 10
-                kwargs['pool_maxsize'] = 20
-                kwargs['maxsize'] = 20
                 return super().init_poolmanager(*args, **kwargs)
         
         session.mount('https://', NoSSLAdapter())
