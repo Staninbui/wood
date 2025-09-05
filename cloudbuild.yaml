@@ -38,7 +38,7 @@ steps:
 # ビルドオプション
 options:
   # マシンタイプを指定（パイロット用の経済的設定）
-  machineType: 'E2_STANDARD_2'
+  machineType: 'E2_STANDARD_4'
   # ディスクサイズ（パイロット用に縮小）
   diskSizeGb: 20
   # ログ設定
