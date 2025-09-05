@@ -6,12 +6,31 @@ import zipfile
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from urllib.parse import urlencode, parse_qs
-from flask import Flask, redirect, request, session, url_for, render_template, send_file
+from flask import Flask, redirect, request, session, url_for, render_template, send_file, jsonify
 from io import BytesIO
+import logging
+from config import config
+from xml_processor import XMLProcessor
+
+# 環境に応じた設定を読み込み
+config_name = os.environ.get('FLASK_ENV', 'development')
+app_config = config.get(config_name, config['default'])
 
 app = Flask(__name__)
-# A secret key is needed for session management
-app.secret_key = os.urandom(24)
+app.config.from_object(app_config)
+
+# ログ設定
+logging.basicConfig(
+    level=getattr(logging, app.config.get('LOG_LEVEL', 'INFO')),
+    format='%(asctime)s %(levelname)s %(name)s %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# XML処理インスタンス
+xml_processor = XMLProcessor(
+    max_workers=int(app.config.get('MAX_WORKERS', 4)),
+    timeout=int(app.config.get('TASK_TIMEOUT', 300))
+)
 
 # --- eBay API Configuration ---
 # For local development, set these environment variables in your shell.
@@ -39,6 +58,15 @@ EBAY_TRADING_API_URL = 'https://api.ebay.com/ws/api.dll'
 
 # Define the required OAuth 2.0 scopes - using feed scope for reports
 SCOPES = ['https://api.ebay.com/oauth/api_scope/sell.inventory']
+
+@app.route('/health')
+def health_check():
+    """ヘルスチェックエンドポイント"""
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat(),
+        'service': 'wood-ebay-app'
+    }), 200
 
 @app.route('/')
 def index():
@@ -764,65 +792,44 @@ def generate_enhanced_csv(task_id):
         if response.status_code != 200:
             return {'error': f'レポートのダウンロードに失敗: HTTP {response.status_code}'}, response.status_code
         
-        # 2. ZIPファイルからItemIDリストを抽出
-        item_ids = extract_item_ids_from_zip(response.content)
+        # 2. ZIPファイルからItemIDリストを抽出（最適化版）
+        item_ids = xml_processor.extract_item_ids_from_zip(response.content)
         
         if not item_ids:
             return {'error': 'ZIPファイルからItemIDを抽出できませんでした'}, 400
         
-        print(f"{len(item_ids)}個のItemIDが見つかりました")
+        logger.info(f"{len(item_ids)}個のItemIDが見つかりました")
         
-        # 3. Trading APIを順次呼び出して詳細情報を取得
-        enhanced_data = []
-        failed_items = []
+        # 3. 並列処理でアイテム詳細を取得（最適化版）
+        enhanced_data_raw = xml_processor.get_item_details_batch(item_ids, access_token)
         
-        for i, item_id in enumerate(item_ids):
-            print(f"ItemID {item_id} を処理中 ({i+1}/{len(item_ids)})")
-            
-            # Trading API GetItemを呼び出し
-            xml_response = get_item_details_trading_api(item_id, access_token)
-            
-            if xml_response:
-                # レスポンスを解析
-                item_data = parse_get_item_response(xml_response)
-                
-                if item_data:
-                    # フィルター: USD通貨の商品のみ処理
-                    currency = item_data.get('Currency', '')
-                    if currency != 'USD':
-                        print(f"非USD商品 ItemID {item_id} をスキップ、通貨: {currency}")
-                        continue
-                    
-                    # デバッグ: Item Specifics情報を出力
-                    item_specifics = item_data.get('ItemSpecifics', {})
-                    print(f"ItemID {item_id} (USD通貨) の Item Specifics: {item_specifics}")
-                    
-                    # Item Specificsを個別の列に展開
-                    row_data = {
-                        'ItemID': item_data.get('ItemID', ''),
-                        'Title': item_data.get('Title', ''),
-                        'SKU': item_data.get('SKU', ''),
-                        'CurrentPrice': item_data.get('CurrentPrice', ''),
-                        'Currency': currency,
-                        'Quantity': item_data.get('Quantity', ''),
-                        'CategoryID': item_data.get('CategoryID', ''),
-                        'CategoryName': item_data.get('CategoryName', '')
-                    }
-                    
-                    # Item Specificsを個別の列として追加
-                    for spec_name, spec_value in item_specifics.items():
-                        # プレフィックスを使用して列名の競合を回避
-                        column_name = f"ItemSpecific_{spec_name}"
-                        row_data[column_name] = spec_value
-                    
-                    enhanced_data.append(row_data)
-                else:
-                    failed_items.append(item_id)
-            else:
-                failed_items.append(item_id)
-        
-        if not enhanced_data:
+        if not enhanced_data_raw:
             return {'error': '商品の詳細情報を取得できませんでした'}, 400
+        
+        # 4. eBayテンプレート形式用にデータを変換
+        enhanced_data = []
+        for item_data in enhanced_data_raw:
+            item_specifics = item_data.get('ItemSpecifics', {})
+            logger.info(f"ItemID {item_data.get('ItemID')} (USD通貨) の Item Specifics: {item_specifics}")
+            
+            # 基本データ構造
+            row_data = {
+                'ItemID': item_data.get('ItemID', ''),
+                'Title': item_data.get('Title', ''),
+                'SKU': item_data.get('SKU', ''),
+                'CurrentPrice': item_data.get('CurrentPrice', ''),
+                'Currency': item_data.get('Currency', ''),
+                'Quantity': item_data.get('Quantity', ''),
+                'CategoryID': item_data.get('CategoryID', ''),
+                'CategoryName': item_data.get('CategoryName', '')
+            }
+            
+            # Item Specificsを個別の列として追加
+            for spec_name, spec_value in item_specifics.items():
+                column_name = f"ItemSpecific_{spec_name}"
+                row_data[column_name] = spec_value
+            
+            enhanced_data.append(row_data)
         
         # 4. eBayテンプレート形式のCSVを作成
         ebay_template_data = []
@@ -871,9 +878,7 @@ def generate_enhanced_csv(task_id):
         
         filename = f"ebay_revise_template_{task_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         
-        print(f"拡張CSVの生成完了、成功: {len(enhanced_data)}件、失敗: {len(failed_items)}件")
-        if failed_items:
-            print(f"失敗したItemID: {failed_items}")
+        logger.info(f"拡張CSVの生成完了、成功: {len(enhanced_data)}件")
         
         return send_file(
             output,

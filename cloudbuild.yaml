@@ -1,0 +1,61 @@
+steps:
+  # Docker イメージをビルド
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build',
+      '-t', 'gcr.io/$PROJECT_ID/wood-ebay-app:$COMMIT_SHA',
+      '-t', 'gcr.io/$PROJECT_ID/wood-ebay-app:latest',
+      '.'
+    ]
+
+  # Docker イメージをContainer Registryにプッシュ
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/wood-ebay-app:$COMMIT_SHA']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/wood-ebay-app:latest']
+
+  # Cloud Runにデプロイ
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args: [
+      'run', 'deploy', 'wood-ebay-app',
+      '--image', 'gcr.io/$PROJECT_ID/wood-ebay-app:$COMMIT_SHA',
+      '--region', 'asia-northeast1',
+      '--platform', 'managed',
+      '--allow-unauthenticated',
+      '--port', '8080',
+      '--memory', '2Gi',
+      '--cpu', '2',
+      '--concurrency', '100',
+      '--max-instances', '10',
+      '--min-instances', '0',
+      '--timeout', '300s',
+      '--set-env-vars', 'FLASK_ENV=production,LOG_LEVEL=INFO,MAX_WORKERS=4,TASK_TIMEOUT=300',
+      '--set-secrets', 'EBAY_APP_ID=ebay-app-id:latest,EBAY_CERT_ID=ebay-cert-id:latest,EBAY_RU_NAME=ebay-ru-name:latest,SECRET_KEY=flask-secret-key:latest'
+    ]
+
+# ビルドオプション
+options:
+  # マシンタイプを指定（CPU集約的タスクのため）
+  machineType: 'E2_HIGHCPU_8'
+  # ディスクサイズ
+  diskSizeGb: 100
+  # ログ設定
+  logging: CLOUD_LOGGING_ONLY
+  # 並列実行
+  substitution_option: 'ALLOW_LOOSE'
+
+# 置換変数
+substitutions:
+  _SERVICE_NAME: 'wood-ebay-app'
+  _REGION: 'asia-northeast1'
+
+# タイムアウト（CPU集約的ビルドのため延長）
+timeout: '1200s'
+
+# ビルド成果物の保存
+artifacts:
+  images:
+    - 'gcr.io/$PROJECT_ID/wood-ebay-app:$COMMIT_SHA'
+    - 'gcr.io/$PROJECT_ID/wood-ebay-app:latest'
