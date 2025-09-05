@@ -5,15 +5,15 @@ import multiprocessing
 bind = f"0.0.0.0:{os.environ.get('PORT', 8080)}"
 backlog = 2048
 
-# ワーカープロセス
-workers = int(os.environ.get('WEB_CONCURRENCY', multiprocessing.cpu_count() * 2 + 1))
+# ワーカープロセス - Cloud Run経済設定に最適化
+workers = int(os.environ.get('WEB_CONCURRENCY', 2))  # 1 CPU用に最適化
 worker_class = 'gevent'
-worker_connections = 1000
-max_requests = 1000
-max_requests_jitter = 50
+worker_connections = 500  # メモリ使用量を削減
+max_requests = 500
+max_requests_jitter = 25
 
-# タイムアウト設定
-timeout = 300  # CPU集約的タスクを考慮
+# タイムアウト設定 - Cloud Run用に調整
+timeout = 120  # Cloud Runのタイムアウトに合わせて短縮
 keepalive = 2
 graceful_timeout = 30
 

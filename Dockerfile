@@ -9,6 +9,11 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 # 本番環境用イメージ
 FROM python:3.11-slim
 
+# 必要なシステムパッケージをインストール
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
 # セキュリティ: 非rootユーザーで実行
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 
@@ -34,8 +39,8 @@ RUN chown -R appuser:appgroup $APP_HOME
 USER appuser
 
 # ヘルスチェック
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:$PORT/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
 
 # Gunicornでアプリケーション起動
 CMD exec gunicorn --config gunicorn.conf.py app:app
