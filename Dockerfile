@@ -1,5 +1,5 @@
 # マルチステージビルドで最適化
-FROM python:3.13-slim as builder
+FROM python:3.12-slim as builder
 
 # 依存関係のインストール用
 WORKDIR /app
@@ -7,7 +7,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # 本番環境用イメージ
-FROM python:3.13-slim
+FROM python:3.12-slim
 
 # 必要なシステムパッケージをインストール
 RUN apt-get update && apt-get install -y --no-install-recommends \
