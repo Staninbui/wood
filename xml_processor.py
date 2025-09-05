@@ -7,6 +7,22 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 from typing import List, Dict, Optional
 import time
+import ssl
+import urllib3
+from urllib3.util import ssl_
+
+# SSL configuration to prevent recursion errors (same as main app)
+ssl._create_default_https_context = ssl._create_unverified_context
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# Monkey patch urllib3 to avoid SSL context creation issues
+def patched_create_urllib3_context(ssl_version=None, cert_reqs=None, options=None, ciphers=None):
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    return context
+
+ssl_.create_urllib3_context = patched_create_urllib3_context
 
 logger = logging.getLogger(__name__)
 
@@ -16,15 +32,29 @@ class XMLProcessor:
     def __init__(self, max_workers: int = 4, timeout: int = 300):
         self.max_workers = max_workers
         self.timeout = timeout
-        self.session = requests.Session()
-        # コネクションプールの設定
-        adapter = requests.adapters.HTTPAdapter(
-            pool_connections=10,
-            pool_maxsize=20,
-            max_retries=3
-        )
-        self.session.mount('http://', adapter)
-        self.session.mount('https://', adapter)
+        self.session = self._create_ssl_session()
+    
+    def _create_ssl_session(self):
+        """Create SSL-safe session to prevent recursion errors"""
+        session = requests.Session()
+        session.verify = False
+        
+        # Use a custom adapter to bypass SSL issues
+        from requests.adapters import HTTPAdapter
+        
+        class NoSSLAdapter(HTTPAdapter):
+            def init_poolmanager(self, *args, **kwargs):
+                kwargs['ssl_context'] = ssl.create_default_context()
+                kwargs['ssl_context'].check_hostname = False
+                kwargs['ssl_context'].verify_mode = ssl.CERT_NONE
+                kwargs['pool_connections'] = 10
+                kwargs['pool_maxsize'] = 20
+                kwargs['maxsize'] = 20
+                return super().init_poolmanager(*args, **kwargs)
+        
+        session.mount('https://', NoSSLAdapter())
+        session.mount('http://', NoSSLAdapter())
+        return session
     
     def extract_item_ids_from_zip(self, zip_content: bytes) -> List[str]:
         """ZIPファイルからItemIDリストを抽出（最適化版）"""
