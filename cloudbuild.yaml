@@ -1,26 +1,38 @@
 steps:
+  # Artifact Registry リポジトリを作成（存在しない場合）
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args: [
+      'artifacts', 'repositories', 'create', 'wood-repo',
+      '--repository-format=docker',
+      '--location=asia-northeast1',
+      '--description=Wood eBay App Docker Repository'
+    ]
+    # エラーを無視（既に存在する場合）
+    allowFailure: true
+
   # Docker イメージをビルド
   - name: 'gcr.io/cloud-builders/docker'
     args: [
       'build',
-      '-t', 'gcr.io/$PROJECT_ID/wood-ebay-app:$COMMIT_SHA',
-      '-t', 'gcr.io/$PROJECT_ID/wood-ebay-app:latest',
+      '-t', 'asia-northeast1-docker.pkg.dev/$PROJECT_ID/wood-repo/wood-ebay-app:$COMMIT_SHA',
+      '-t', 'asia-northeast1-docker.pkg.dev/$PROJECT_ID/wood-repo/wood-ebay-app:latest',
       '.'
     ]
 
-  # Docker イメージをContainer Registryにプッシュ
+  # Docker イメージをArtifact Registryにプッシュ
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/wood-ebay-app:$COMMIT_SHA']
+    args: ['push', 'asia-northeast1-docker.pkg.dev/$PROJECT_ID/wood-repo/wood-ebay-app:$COMMIT_SHA']
 
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/wood-ebay-app:latest']
+    args: ['push', 'asia-northeast1-docker.pkg.dev/$PROJECT_ID/wood-repo/wood-ebay-app:latest']
 
   # Cloud Runにデプロイ
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: 'gcloud'
     args: [
       'run', 'deploy', 'wood-ebay-app',
-      '--image', 'gcr.io/$PROJECT_ID/wood-ebay-app:$COMMIT_SHA',
+      '--image', 'asia-northeast1-docker.pkg.dev/$PROJECT_ID/wood-repo/wood-ebay-app:$COMMIT_SHA',
       '--region', 'asia-northeast1',
       '--platform', 'managed',
       '--allow-unauthenticated',
@@ -43,5 +55,5 @@ substitutions:
 # ビルド成果物の保存
 artifacts:
   images:
-    - 'gcr.io/$PROJECT_ID/wood-ebay-app:$COMMIT_SHA'
-    - 'gcr.io/$PROJECT_ID/wood-ebay-app:latest'
+    - 'asia-northeast1-docker.pkg.dev/$PROJECT_ID/wood-repo/wood-ebay-app:$COMMIT_SHA'
+    - 'asia-northeast1-docker.pkg.dev/$PROJECT_ID/wood-repo/wood-ebay-app:latest'
