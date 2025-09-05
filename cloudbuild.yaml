@@ -43,7 +43,7 @@ steps:
       '--max-instances', '3',
       '--min-instances', '0',
       '--timeout', '300s',
-      '--set-env-vars', 'FLASK_ENV=production,LOG_LEVEL=INFO,MAX_WORKERS=2,TASK_TIMEOUT=300',
+      '--set-env-vars', 'FLASK_ENV=production,LOG_LEVEL=INFO,MAX_WORKERS=2,TASK_TIMEOUT=300,PYTHONHTTPSVERIFY=0,CURL_CA_BUNDLE=,REQUESTS_CA_BUNDLE=',
       '--set-secrets', 'EBAY_APP_ID=ebay-app-id:latest,EBAY_CERT_ID=ebay-cert-id:latest,EBAY_RU_NAME=ebay-ru-name:latest,SECRET_KEY=flask-secret-key:latest'
     ]
 

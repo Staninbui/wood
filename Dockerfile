@@ -1,5 +1,5 @@
 # マルチステージビルドで最適化
-FROM python:3.12-slim as builder
+FROM python:3.11-slim as builder
 
 # 依存関係のインストール用
 WORKDIR /app
@@ -7,7 +7,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # 本番環境用イメージ
-FROM python:3.12-slim
+FROM python:3.11-slim
 
 # 必要なシステムパッケージをインストール
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -21,7 +21,10 @@ RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 ENV PYTHONUNBUFFERED=True \
     PYTHONDONTWRITEBYTECODE=True \
     PATH="/home/appuser/.local/bin:$PATH" \
-    APP_HOME=/app
+    APP_HOME=/app \
+    PYTHONHTTPSVERIFY=0 \
+    CURL_CA_BUNDLE="" \
+    REQUESTS_CA_BUNDLE=""
 
 # 作業ディレクトリ設定
 WORKDIR $APP_HOME

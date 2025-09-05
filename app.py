@@ -15,13 +15,39 @@ import ssl
 import urllib3
 
 # SSL configuration to prevent recursion errors
+import ssl
+import urllib3
+from urllib3.util import ssl_
+
+# Completely disable SSL verification to prevent recursion
 ssl._create_default_https_context = ssl._create_unverified_context
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# Monkey patch urllib3 to avoid SSL context creation issues
+def patched_create_urllib3_context(ssl_version=None, cert_reqs=None, options=None, ciphers=None):
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    return context
+
+ssl_.create_urllib3_context = patched_create_urllib3_context
 
 # Create a custom requests session with SSL configuration
 def create_ssl_session():
     session = requests.Session()
     session.verify = False
+    # Use a custom adapter to bypass SSL issues
+    from requests.adapters import HTTPAdapter
+    from urllib3.poolmanager import PoolManager
+    
+    class NoSSLAdapter(HTTPAdapter):
+        def init_poolmanager(self, *args, **kwargs):
+            kwargs['ssl_context'] = ssl.create_default_context()
+            kwargs['ssl_context'].check_hostname = False
+            kwargs['ssl_context'].verify_mode = ssl.CERT_NONE
+            return super().init_poolmanager(*args, **kwargs)
+    
+    session.mount('https://', NoSSLAdapter())
     return session
 
 # 環境に応じた設定を読み込み
