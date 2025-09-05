@@ -6,13 +6,16 @@ import zipfile
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from urllib.parse import urlencode, parse_qs
-from flask import Flask, redirect, request, session, url_for, render_template, send_file, jsonify
+from flask import Flask, redirect, request, session, url_for, render_template, send_file, jsonify, Response
 from io import BytesIO
 import logging
 from config import config
 from xml_processor import XMLProcessor
 import ssl
 import urllib3
+from progress_manager import progress_manager, TaskStatus
+import time
+import json
 
 # SSL configuration to prevent recursion errors
 import ssl
@@ -816,16 +819,22 @@ def generate_enhanced_csv(task_id):
         return {'error': 'ログインしていません'}, 401
     
     try:
+        # 启动进度跟踪
+        progress_manager.start_task(task_id)
+        
         token_info = session['ebay_token']
         access_token = token_info.get('access_token')
         
         if not access_token:
+            progress_manager.complete_task(task_id, success=False, message='アクセストークンが無効です')
             return {'error': 'アクセストークンが無効です'}, 401
         
         print(f"=== 拡張CSVレポートの生成 ===")
         print(f"Task ID: {task_id}")
         
         # 1. ZIPファイルをダウンロード
+        progress_manager.update_progress(task_id, TaskStatus.DOWNLOADING, current_step=1, message='ZIPファイルをダウンロード中...')
+        
         headers = {
             'Authorization': f'Bearer {access_token}',
             'Accept': 'application/octet-stream',
@@ -837,23 +846,31 @@ def generate_enhanced_csv(task_id):
         response = ssl_session.get(download_url, headers=headers)
         
         if response.status_code != 200:
+            progress_manager.complete_task(task_id, success=False, message=f'レポートのダウンロードに失敗: HTTP {response.status_code}')
             return {'error': f'レポートのダウンロードに失敗: HTTP {response.status_code}'}, response.status_code
         
         # 2. ZIPファイルからItemIDリストを抽出（最適化版）
+        progress_manager.update_progress(task_id, TaskStatus.EXTRACTING, current_step=2, message='ItemIDを抽出中...')
+        
         item_ids = xml_processor.extract_item_ids_from_zip(response.content)
         
         if not item_ids:
+            progress_manager.complete_task(task_id, success=False, message='ZIPファイルからItemIDを抽出できませんでした')
             return {'error': 'ZIPファイルからItemIDを抽出できませんでした'}, 400
         
         logger.info(f"{len(item_ids)}個のItemIDが見つかりました")
+        progress_manager.update_progress(task_id, TaskStatus.PROCESSING, current_step=3, total_items=len(item_ids), message=f'{len(item_ids)}個のアイテム詳細を取得中...')
         
         # 3. 並列処理でアイテム詳細を取得（最適化版）
-        enhanced_data_raw = xml_processor.get_item_details_batch(item_ids, access_token)
+        enhanced_data_raw = xml_processor.get_item_details_batch(item_ids, access_token, task_id)
         
         if not enhanced_data_raw:
+            progress_manager.complete_task(task_id, success=False, message='商品の詳細情報を取得できませんでした')
             return {'error': '商品の詳細情報を取得できませんでした'}, 400
         
         # 4. eBayテンプレート形式用にデータを変換
+        progress_manager.update_progress(task_id, TaskStatus.GENERATING, current_step=4, message='CSVファイルを生成中...')
+        
         enhanced_data = []
         for item_data in enhanced_data_raw:
             item_specifics = item_data.get('ItemSpecifics', {})
@@ -926,6 +943,7 @@ def generate_enhanced_csv(task_id):
         filename = f"ebay_revise_template_{task_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         
         logger.info(f"拡張CSVの生成完了、成功: {len(enhanced_data)}件")
+        progress_manager.complete_task(task_id, success=True, message=f'CSV生成完了 - {len(enhanced_data)}件のアイテム')
         
         return send_file(
             output,
@@ -936,6 +954,7 @@ def generate_enhanced_csv(task_id):
         
     except Exception as e:
         print(f"拡張CSV生成時にエラーが発生しました: {str(e)}")
+        progress_manager.complete_task(task_id, success=False, message=f'エラー: {str(e)}')
         return {'error': f'拡張CSV生成時にエラーが発生しました: {str(e)}'}, 500
 
 @app.route('/export-csv')
@@ -1011,6 +1030,46 @@ def export_excel():
         
     except Exception as e:
         return {'error': f'Excelエクスポート時にエラーが発生しました: {str(e)}'}, 500
+
+# 新增路由：SSE进度推送
+@app.route('/progress/<task_id>')
+def progress_stream(task_id):
+    """Server-Sent Events进度推送"""
+    if 'ebay_token' not in session:
+        return {'error': 'ログインしていません'}, 401
+    
+    def generate():
+        while True:
+            progress = progress_manager.get_progress(task_id)
+            if progress:
+                # 计算经过时间
+                elapsed_time = time.time() - progress.start_time
+                
+                data = {
+                    'task_id': progress.task_id,
+                    'status': progress.status.value,
+                    'current_step': progress.current_step,
+                    'total_steps': progress.total_steps,
+                    'current_item': progress.current_item,
+                    'total_items': progress.total_items,
+                    'progress_percentage': progress.progress_percentage,
+                    'message': progress.message,
+                    'elapsed_time': round(elapsed_time, 1)
+                }
+                
+                yield f"data: {json.dumps(data)}\n\n"
+                
+                # 如果任务完成或失败，结束推送
+                if progress.status in [TaskStatus.COMPLETED, TaskStatus.FAILED]:
+                    break
+            else:
+                # 任务不存在
+                yield f"data: {json.dumps({'error': 'Task not found'})}\n\n"
+                break
+            
+            time.sleep(1)  # 每秒推送一次
+    
+    return Response(generate(), mimetype='text/plain')
 
 if __name__ == '__main__':
     # Ensure the callback URL is correctly set for local testing

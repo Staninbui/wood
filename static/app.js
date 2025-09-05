@@ -306,83 +306,174 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// 生成增强CSV的函数，带加载动画和防抖
+// 实时进度显示功能
+function showProgressModal(taskId) {
+    // 创建进度模态框
+    const modal = document.createElement('div');
+    modal.id = 'progressModal';
+    modal.innerHTML = `
+        <div class="modal-overlay">
+            <div class="modal-content">
+                <h3>CSV生成中</h3>
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-text">
+                        <span id="progressPercentage">0%</span>
+                        <span id="progressMessage">処理中...</span>
+                    </div>
+                </div>
+                <div class="progress-details">
+                    <div>ステップ: <span id="currentStep">0</span>/<span id="totalSteps">5</span></div>
+                    <div>項目: <span id="currentItem">0</span>/<span id="totalItems">0</span></div>
+                    <div>経過時間: <span id="elapsedTime">0</span>秒</div>
+                </div>
+                <button id="closeProgress" style="display:none;" onclick="closeProgressModal()">閉じる</button>
+            </div>
+        </div>
+    `;
+    
+    // 添加样式
+    const style = document.createElement('style');
+    style.textContent = `
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            min-width: 400px;
+            text-align: center;
+        }
+        .progress-container {
+            margin: 20px 0;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #45a049);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .progress-text {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .progress-details {
+            text-align: left;
+            background: #f9f9f9;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .progress-details div {
+            margin: 5px 0;
+        }
+    `;
+    
+    document.head.appendChild(style);
+    document.body.appendChild(modal);
+    
+    // 启动SSE连接
+    const eventSource = new EventSource(`/progress/${taskId}`);
+    
+    eventSource.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        
+        if (data.error) {
+            document.getElementById('progressMessage').textContent = 'エラー: ' + data.error;
+            document.getElementById('closeProgress').style.display = 'block';
+            eventSource.close();
+            return;
+        }
+        
+        // 更新进度显示
+        const percentage = Math.round(data.progress_percentage);
+        document.getElementById('progressFill').style.width = percentage + '%';
+        document.getElementById('progressPercentage').textContent = percentage + '%';
+        document.getElementById('progressMessage').textContent = data.message;
+        document.getElementById('currentStep').textContent = data.current_step;
+        document.getElementById('totalSteps').textContent = data.total_steps;
+        document.getElementById('currentItem').textContent = data.current_item;
+        document.getElementById('totalItems').textContent = data.total_items;
+        document.getElementById('elapsedTime').textContent = data.elapsed_time;
+        
+        // 如果完成或失败，显示关闭按钮并关闭连接
+        if (data.status === 'completed' || data.status === 'failed') {
+            document.getElementById('closeProgress').style.display = 'block';
+            eventSource.close();
+            
+            if (data.status === 'completed') {
+                // 自动下载文件（如果需要）
+                setTimeout(() => {
+                    window.location.href = `/generate-enhanced-csv/${taskId}`;
+                }, 1000);
+            }
+        }
+    };
+    
+    eventSource.onerror = function(event) {
+        console.error('SSE connection error:', event);
+        document.getElementById('progressMessage').textContent = '接続エラー';
+        document.getElementById('closeProgress').style.display = 'block';
+        eventSource.close();
+    };
+}
+
+function closeProgressModal() {
+    const modal = document.getElementById('progressModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+// 生成增强CSV的函数，带实时进度显示
 let isGeneratingCSV = false;
 
 function generateEnhancedCSV(taskId) {
     if (isGeneratingCSV) {
         alert('CSV生成中です。しばらくお待ちください...');
-        return;
+        return false;
     }
     
     isGeneratingCSV = true;
     
-    // 禁用所有按钮
-    const allButtons = document.querySelectorAll('button, .download-btn, .enhanced-csv-btn');
-    allButtons.forEach(btn => {
-        btn.style.opacity = '0.6';
-        btn.style.pointerEvents = 'none';
-        if (btn.tagName === 'BUTTON') {
-            btn.disabled = true;
-        }
-    });
+    // 显示进度模态框
+    showProgressModal(taskId);
     
-    // 更新按钮文本显示加载状态
-    const targetBtn = document.getElementById(`enhanced-csv-${taskId}`) || 
-                     document.getElementById(`enhanced-csv-list-${taskId}`);
-    if (targetBtn) {
-        targetBtn.innerHTML = '生成中... <span style="animation: spin 1s linear infinite;">⟳</span>';
-    }
-    
-    // 使用fetch API来处理下载
+    // 启动后端处理
     fetch(`/generate-enhanced-csv/${taskId}`)
         .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+            if (response.ok) {
+                return response.blob();
             }
-            return response.blob();
-        })
-        .then(blob => {
-            // 创建下载链接
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.style.display = 'none';
-            a.href = url;
-            a.download = `ebay_revise_template_${taskId}_${new Date().toISOString().slice(0,19).replace(/[-:]/g, '').replace('T', '_')}.csv`;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
+            throw new Error('CSV生成失敗');
         })
         .catch(error => {
-            console.error('ダウンロード失敗:', error);
-            alert('ダウンロード失敗しました。再試行してください');
+            console.error('CSV生成エラー:', error);
         })
         .finally(() => {
             isGeneratingCSV = false;
-            
-            // 恢复所有按钮
-            allButtons.forEach(btn => {
-                btn.style.opacity = '1';
-                btn.style.pointerEvents = 'auto';
-                if (btn.tagName === 'BUTTON') {
-                    btn.disabled = false;
-                }
-            });
-            
-            // 恢复按钮文本
-            if (targetBtn) {
-                targetBtn.innerHTML = '📊 拡張CSV生成';
-            }
         });
+    
+    return false;
 }
-
-// 添加CSS动画
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-    }
-`;
-document.head.appendChild(style);

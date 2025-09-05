@@ -60,12 +60,18 @@ class XMLProcessor:
             logger.error(f"ZIP文件からのItemID抽出エラー: {e}")
             return []
     
-    def get_item_details_batch(self, item_ids: List[str], access_token: str) -> List[Dict]:
+    def get_item_details_batch(self, item_ids: List[str], access_token: str, task_id: str = None) -> List[Dict]:
         """バッチでアイテム詳細を取得（並列処理）"""
         results = []
         failed_items = []
         
         logger.info(f"開始処理 {len(item_ids)} 個のItemID、並列度: {self.max_workers}")
+        
+        # 导入进度管理器
+        try:
+            from progress_manager import progress_manager, TaskStatus
+        except ImportError:
+            progress_manager = None
         
         def fetch_single_item(item_id: str) -> Optional[Dict]:
             """単一アイテムの詳細を取得"""
@@ -121,6 +127,15 @@ class XMLProcessor:
                 except Exception as e:
                     logger.error(f"ItemID {item_id} 処理エラー: {e} ({completed_count}/{total_count})")
                     failed_items.append(item_id)
+                
+                # 更新进度到进度管理器
+                if progress_manager and task_id:
+                    progress_manager.update_progress(
+                        task_id, 
+                        TaskStatus.PROCESSING, 
+                        current_item=completed_count,
+                        message=f'アイテム詳細取得中... ({completed_count}/{total_count})'
+                    )
         
         elapsed_time = time.time() - start_time
         logger.info(f"処理完了 - 成功: {len(results)}, 失敗: {len(failed_items)}, 処理時間: {elapsed_time:.2f}秒")
