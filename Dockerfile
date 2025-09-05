@@ -1,5 +1,5 @@
 # マルチステージビルドで最適化
-FROM python:3.11-slim as builder
+FROM python:3.13-slim as builder
 
 # 依存関係のインストール用
 WORKDIR /app
@@ -7,7 +7,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # 本番環境用イメージ
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 # 必要なシステムパッケージをインストール
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -43,4 +43,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
 
 # 启动完整应用，使用优化的配置
-CMD exec gunicorn --bind 0.0.0.0:${PORT:-8080} --workers 2 --worker-class gevent --worker-connections 500 --timeout 120 --log-level info app:app
+CMD exec gunicorn --bind 0.0.0.0:${PORT:-8080} --workers 2 --timeout 120 --log-level info app:app
