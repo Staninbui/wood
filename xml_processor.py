@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class XMLProcessor:
     """XML処理を最適化するクラス"""
     
-    def __init__(self, max_workers: int = 4, timeout: int = 300):
+    def __init__(self, max_workers: int = 2, timeout: int = 300):
         self.max_workers = max_workers
         self.timeout = timeout
     
@@ -68,9 +68,20 @@ class XMLProcessor:
         def fetch_single_item(item_id: str) -> Optional[Dict]:
             """単一アイテムの詳細を取得"""
             try:
+                logger.info(f"ItemID {item_id} の詳細取得を開始")
+                # Add delay to avoid overwhelming eBay API
+                time.sleep(0.5)
                 xml_response = self._get_item_details_trading_api(item_id, access_token)
                 if xml_response:
-                    return self._parse_get_item_response(xml_response)
+                    logger.info(f"ItemID {item_id} のXMLレスポンス取得成功")
+                    parsed_result = self._parse_get_item_response(xml_response)
+                    if parsed_result:
+                        logger.info(f"ItemID {item_id} の解析成功")
+                        return parsed_result
+                    else:
+                        logger.error(f"ItemID {item_id} のXML解析失敗")
+                else:
+                    logger.error(f"ItemID {item_id} のXMLレスポンス取得失敗")
                 return None
             except Exception as e:
                 logger.error(f"ItemID {item_id} の取得エラー: {e}")
@@ -131,12 +142,16 @@ class XMLProcessor:
                 'https://api.ebay.com/ws/api.dll'
             ]
             
+            logger.info(f"ItemID {item_id} curl実行開始")
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             
             if result.returncode == 0:
+                logger.info(f"ItemID {item_id} curl成功、レスポンス長: {len(result.stdout)}")
                 return result.stdout
             else:
-                logger.error(f"curl failed for ItemID {item_id}: {result.stderr}")
+                logger.error(f"curl failed for ItemID {item_id}, return code: {result.returncode}")
+                logger.error(f"curl stderr: {result.stderr}")
+                logger.error(f"curl stdout: {result.stdout}")
                 return None
                 
         except subprocess.TimeoutExpired:
