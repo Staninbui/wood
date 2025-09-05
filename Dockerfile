@@ -42,5 +42,13 @@ USER appuser
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
 
-# Gunicornでアプリケーション起動
-CMD exec gunicorn --config gunicorn.conf.py app:app
+# 使用测试应用进行调试
+CMD echo "=== Debug Info ===" && \
+    echo "Python version: $(python --version)" && \
+    echo "Working directory: $(pwd)" && \
+    echo "Files: $(ls -la)" && \
+    echo "Environment PORT: ${PORT:-8080}" && \
+    echo "Testing simple app..." && \
+    python -c "import test_app; print('Test app import OK')" && \
+    echo "Starting with test app..." && \
+    exec gunicorn --bind 0.0.0.0:${PORT:-8080} --workers 1 --timeout 120 --log-level debug test_app:app
