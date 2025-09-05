@@ -63,19 +63,19 @@ def login():
 
 @app.route('/callback')
 def callback():
-    # 添加调试信息
+    # デバッグ情報を追加
     print(f"Callback received with args: {request.args}")
     print(f"Full request URL: {request.url}")
     
-    auth_code = request.args.get('code')
+    code = request.args.get('code')
     error = request.args.get('error')
     error_description = request.args.get('error_description')
     
-    # 如果有错误参数，显示错误信息
+    # エラーパラメータがある場合、エラー情報を表示
     if error:
         return f"eBay OAuth Error: {error} - {error_description}", 400
     
-    if not auth_code:
+    if not code:
         return f"Authorization code not found. Received parameters: {dict(request.args)}", 400
 
     # Prepare credentials for token exchange
@@ -90,7 +90,7 @@ def callback():
     
     data = {
         'grant_type': 'authorization_code',
-        'code': auth_code,
+        'code': code,
         'redirect_uri': EBAY_RU_NAME
     }
 
@@ -117,7 +117,7 @@ def logout():
     return redirect(url_for('index'))
 
 def create_inventory_task(access_token):
-    """创建 eBay Inventory Task 获取 active listings"""
+    """eBay Inventory Task を作成してアクティブリストを取得"""
     headers = {
         'Authorization': f'Bearer {access_token}',
         'Content-Type': 'application/json',
@@ -130,27 +130,27 @@ def create_inventory_task(access_token):
         "schemaVersion": "1.0"
     }  
     
-    print(f"=== Inventory Task API 调试信息 ===")
+    print(f"=== Inventory Task API デバッグ情報 ===")
     print(f"URL: {EBAY_INVENTORY_REPORT_URL}")
     print(f"Headers: {headers}")
     print(f"Payload: {payload}")
     
     try:
         response = requests.post(EBAY_INVENTORY_REPORT_URL, headers=headers, json=payload)
-        print(f"响应状态码: {response.status_code}")
-        print(f"响应头: {response.headers}")
-        print(f"响应内容: {response.text}")
+        print(f"レスポンスステータスコード: {response.status_code}")
+        print(f"レスポンスヘッダー: {response.headers}")
+        print(f"レスポンス内容: {response.text}")
         
-        # 202 表示任务创建成功
+        # 202 はタスク作成成功を表す
         if response.status_code == 202:
-            # 从 Location 头部提取 task_id
+            # Location ヘッダーから task_id を抽出
             location = response.headers.get('Location', '')
-            print(f"Location 头部: {location}")
+            print(f"Location ヘッダー: {location}")
             
             if location:
-                # 从 URL 中提取 task_id (例如: task-20-23232459833347 中的 task-20)
+                # URL から task_id を抽出 (例: task-20-23232459833347 の task-20)
                 task_id = location.split('/')[-1]
-                print(f"提取的 task_id: {task_id}")
+                print(f"抽出された task_id: {task_id}")
                 
                 return {
                     'taskId': task_id,
@@ -158,26 +158,26 @@ def create_inventory_task(access_token):
                     'location': location
                 }
             else:
-                print("未找到 Location 头部")
+                print("Location ヘッダーが見つかりません")
                 return None
         else:
             response.raise_for_status()
             return response.json()
             
     except requests.RequestException as e:
-        print(f"创建 Inventory 任务失败: {e}")
+        print(f"Inventory タスク作成失敗: {e}")
         if hasattr(e, 'response') and e.response:
-            print(f"错误响应状态码: {e.response.status_code}")
-            print(f"错误响应内容: {e.response.text}")
+            print(f"エラーレスポンスステータスコード: {e.response.status_code}")
+            print(f"エラーレスポンス内容: {e.response.text}")
             try:
                 error_json = e.response.json()
-                print(f"错误 JSON: {error_json}")
+                print(f"エラー JSON: {error_json}")
             except:
                 pass
         return None
 
 def get_inventory_task_status(access_token, task_id):
-    """获取 Inventory 任务状态"""
+    """Inventory タスクステータスを取得"""
     headers = {
         'Authorization': f'Bearer {access_token}',
         'Content-Type': 'application/json',
@@ -190,11 +190,11 @@ def get_inventory_task_status(access_token, task_id):
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
-        print(f"获取 Inventory 任务状态失败: {e}")
+        print(f"Inventory タスクステータス取得失敗: {e}")
         return None
 
 def get_inventory_task_by_id(access_token, task_id):
-    """根据 task_id 获取单个 Inventory 任务状态"""
+    """task_id に基づいて単一の Inventory タスクステータスを取得"""
     headers = {
         'Authorization': f'Bearer {access_token}',
         'Content-Type': 'application/json',
@@ -202,22 +202,22 @@ def get_inventory_task_by_id(access_token, task_id):
         'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US'
     }
     
-    # 使用 GET /inventory_task/{task_id} 端点
+    # GET /inventory_task/{task_id} エンドポイントを使用
     url = f'{EBAY_INVENTORY_REPORT_URL}/{task_id}'
     
     try:
         response = requests.get(url, headers=headers)
-        print(f"单个任务状态检查响应状态码: {response.status_code}")
-        print(f"单个任务状态检查响应内容: {response.text}")
+        print(f"単一タスクステータスチェックレスポンスステータスコード: {response.status_code}")
+        print(f"単一タスクステータスチェックレスポンス内容: {response.text}")
         
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
-        print(f"获取单个 Inventory 任务状态失败: {e}")
+        print(f"単一 Inventory タスクステータス取得失敗: {e}")
         return None
 
 def get_recent_inventory_tasks(access_token, days=7):
-    """获取最近指定天数内的所有 Inventory 任务"""
+    """最近指定日数内のすべての Inventory タスクを取得"""
     headers = {
         'Authorization': f'Bearer {access_token}',
         'Content-Type': 'application/json',
@@ -225,33 +225,34 @@ def get_recent_inventory_tasks(access_token, days=7):
         'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US'
     }
     
-    # 计算日期范围
+    # 日付範囲を計算
     from datetime import datetime, timedelta
     end_date = datetime.now()
     start_date = end_date - timedelta(days=days)
     
-    date_range = f"{start_date.strftime('%Y-%m-%dT%H:%M:%S.000Z')}..{end_date.strftime('%Y-%m-%dT%H:%M:%S.000Z')}"
+    # ISO 8601 形式でフォーマット (eBay APIが期待する3桁ミリ秒形式)
+    date_from = start_date.strftime('%Y-%m-%dT%H:%M:%S') + f'.{start_date.microsecond // 1000:03d}Z'
+    date_to = end_date.strftime('%Y-%m-%dT%H:%M:%S') + f'.{end_date.microsecond // 1000:03d}Z'
     
     params = {
+        'date_range': f'{date_from}..{date_to}',
         'feed_type': 'LMS_ACTIVE_INVENTORY_REPORT',
-        'date_range': date_range,
-        'limit': 50,
-        'offset': 0
+        'limit': '200'
     }
     
     try:
         response = requests.get(EBAY_INVENTORY_REPORT_URL, headers=headers, params=params)
-        print(f"最近任务列表响应状态码: {response.status_code}")
-        print(f"最近任务列表响应内容: {response.text}")
+        print(f"最近のタスクリストレスポンスステータスコード: {response.status_code}")
+        print(f"最近のタスクリストレスポンス内容: {response.text}")
         
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
-        print(f"获取最近 Inventory 任务列表失败: {e}")
+        print(f"最近の Inventory タスクリスト取得失敗: {e}")
         return None
 
 def download_inventory_result(access_token, task_id):
-    """下载 Inventory 任务结果"""
+    """Inventory タスク結果をダウンロード"""
     headers = {
         'Authorization': f'Bearer {access_token}',
         'Accept': 'application/json',
@@ -259,24 +260,24 @@ def download_inventory_result(access_token, task_id):
     }
     
     download_url = EBAY_INVENTORY_REPORT_DOWNLOAD_URL.format(task_id=task_id)
-    print(f"=== Inventory Download API 调试信息 ===")
+    print(f"=== Inventory Download API デバッグ情報 ===")
     print(f"URL: {download_url}")
     print(f"Task ID: {task_id}")
     
     try:
         response = requests.get(download_url, headers=headers)
         response.raise_for_status()
-        return response.json()  # Inventory API 通常返回 JSON 格式
+        return response.json()  # Inventory API は通常 JSON 形式で返す
     except requests.RequestException as e:
-        print(f"下载 Inventory 结果失败: {e}")
+        print(f"Inventory 結果のダウンロードに失敗: {e}")
         return None
 
 def parse_inventory_data(inventory_json):
-    """解析 Inventory API 返回的 JSON 数据"""
+    """Inventory API が返す JSON データを解析"""
     try:
         listings_data = []
         
-        # Inventory API 返回的是 JSON 格式
+        # Inventory API が返すのは JSON 形式
         if 'inventoryItems' in inventory_json:
             inventory_items = inventory_json['inventoryItems']
             
@@ -294,7 +295,7 @@ def parse_inventory_data(inventory_json):
         
         return listings_data
     except Exception as e:
-        print(f"解析 Inventory 数据失败: {e}")
+        print(f"Inventory データの解析に失敗: {e}")
         return []
 
 @app.route('/generate-report', methods=['POST'])
@@ -309,11 +310,11 @@ def generate_report():
         return {'error': 'No access token available'}, 401
     
     try:
-        # 使用 Inventory Task API 创建报告任务
+        # Inventory Task API を使用してレポートタスクを作成
         task_response = create_inventory_task(access_token)
         
         if task_response is None:
-            # 如果 Inventory API 调用失败，返回模拟数据作为备用
+            # Inventory API 呼び出しが失敗した場合、バックアップとしてデモデータを返す
             listings_data = [
                 {
                     'sku': 'DEMO-001',
@@ -338,42 +339,42 @@ def generate_report():
             task_id = task_response.get('taskId')
             
             if not task_id:
-                return {'error': '无法获取任务 ID'}, 500
+                return {'error': 'タスクIDを取得できません'}, 500
             
-            # 存储任务 ID 到 session，以便后续查询状态
+            # 後続のステータス照会のためにタスクIDをセッションに保存
             session['inventory_task_id'] = task_id
             
-            # 返回任务创建成功的消息，实际数据需要等待任务完成
+            # タスク作成成功のメッセージを返す、実際のデータはタスク完了を待つ必要がある
             return {
                 'status': 'task_created',
-                'message': 'Inventory 报告任务已创建，请稍后查看状态',
+                'message': 'Inventoryレポートタスクが作成されました。後でステータスをご確認ください。',
                 'task_id': task_id,
                 'data': {
                     'task_status': 'IN_PROGRESS',
                     'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                    'summary': '正在生成 eBay 商品库存报告，请等待任务完成'
+                    'summary': 'eBay商品在庫レポートを生成中です。タスクの完了をお待ちください。'
                 }
             }, 202
         
-        # 备用数据的处理逻辑
+        # バックアップデータの処理ロジック
         session['listings_data'] = listings_data
         
         report_data = {
             'status': 'success',
-            'message': '报告生成成功！（使用演示数据）',
+            'message': 'レポートの生成が成功しました！（デモデータを使用）',
             'data': {
                 'total_items': len(listings_data),
                 'active_listings': len([item for item in listings_data if item['listing_status'] == 'Active']),
                 'categories': list(set([item['category'] for item in listings_data])),
                 'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'summary': f'成功获取了 {len(listings_data)} 个商品的详细信息（演示数据）'
+                'summary': f'{len(listings_data)}個の商品の詳細情報を正常に取得しました（デモデータ）'
             }
         }
         
         return report_data, 200
         
     except Exception as e:
-        return {'error': f'生成报告时出错: {str(e)}'}, 500
+        return {'error': f'レポート生成時にエラーが発生しました: {str(e)}'}, 500
 
 @app.route('/check-feed-status', methods=['GET'])
 def check_inventory_status():
@@ -381,72 +382,72 @@ def check_inventory_status():
         return {'error': 'Not authenticated'}, 401
     
     if 'inventory_task_id' not in session:
-        return {'error': '没有找到 Inventory 任务 ID'}, 400
+        return {'error': 'Inventory タスクIDが見つかりません'}, 400
     
     token_info = session['ebay_token']
     access_token = token_info.get('access_token')
     task_id = session['inventory_task_id']
     
     try:
-        # 获取任务状态
+        # タスクステータスを取得
         status_response = get_inventory_task_by_id(access_token, task_id)
         
         if status_response is None:
-            return {'error': '无法获取任务状态'}, 500
+            return {'error': 'タスクステータスを取得できません'}, 500
         
         task_status = status_response.get('status')
         
         if task_status == 'COMPLETED':
-            # 任务完成，下载结果
+            # タスク完了、結果をダウンロード
             inventory_data = download_inventory_result(access_token, task_id)
             
             if inventory_data:
-                # 解析 Inventory 数据
+                # Inventory データを解析
                 listings_data = parse_inventory_data(inventory_data)
                 
-                # 存储数据到 session
+                # データをセッションに保存
                 session['listings_data'] = listings_data
                 
                 return {
                     'status': 'success',
-                    'message': 'Inventory 报告已完成！',
+                    'message': 'Inventoryレポートが完了しました！',
                     'data': {
                         'total_items': len(listings_data),
                         'active_listings': len([item for item in listings_data if item['listing_status'] == 'Active']),
                         'categories': list(set([item['category'] for item in listings_data])),
                         'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                        'summary': f'成功获取了 {len(listings_data)} 个商品的详细信息'
+                        'summary': f'{len(listings_data)}個の商品の詳細情報を正常に取得しました'
                     }
                 }, 200
             else:
-                return {'error': '无法下载 Inventory 结果'}, 500
+                return {'error': 'Inventory結果をダウンロードできません'}, 500
         
         elif task_status == 'FAILED':
-            return {'error': f'Inventory 任务失败: {status_response.get("message", "未知错误")}'}, 500
+            return {'error': f'Inventoryタスクが失敗しました: {status_response.get("message", "不明なエラー")}'}, 500
         
         else:
-            # 任务仍在进行中
+            # タスクはまだ実行中
             return {
                 'status': 'in_progress',
-                'message': f'任务状态: {task_status}',
+                'message': f'タスクステータス: {task_status}',
                 'task_status': task_status
             }, 202
     
     except Exception as e:
-        return {'error': f'检查任务状态时出错: {str(e)}'}, 500
+        return {'error': f'タスクステータスの確認時にエラーが発生しました: {str(e)}'}, 500
 
-# 新增路由：获取最近7天内的所有报告
+# 新しいルート: 最近7日間のすべてのレポートを取得
 @app.route('/get-recent-reports', methods=['GET'])
 def get_recent_reports():
     if 'ebay_token' not in session:
-        return {'error': '未登录'}, 401
+        return {'error': 'ログインしていません'}, 401
     
     try:
         token_info = session['ebay_token']
         access_token = token_info.get('access_token')
         
         if not access_token:
-            return {'error': 'Access token 无效'}, 401
+            return {'error': 'アクセストークンが無効です'}, 401
             
         days = request.args.get('days', 7, type=int)
         
@@ -474,30 +475,30 @@ def get_recent_reports():
                 'status': 'success',
                 'tasks': [],
                 'total_count': 0,
-                'message': f'最近 {days} 天内没有找到任务'
+                'message': f'最近{days}日間にタスクが見つかりませんでした'
             }, 200
             
     except Exception as e:
-        return {'error': f'获取最近报告时出错: {str(e)}'}, 500
+        return {'error': f'最近のレポート取得時にエラーが発生しました: {str(e)}'}, 500
 
-# 新增路由：通过 task_id 查询任务状态
+# 新しいルート: task_idによるタスクステータス照会
 @app.route('/query-task-by-id', methods=['POST'])
 def query_task_by_id():
     if 'ebay_token' not in session:
-        return {'error': '未登录'}, 401
+        return {'error': 'ログインしていません'}, 401
     
     try:
         data = request.get_json()
         task_id = data.get('task_id')
         
         if not task_id:
-            return {'error': '请提供 task_id'}, 400
+            return {'error': 'task_idを提供してください'}, 400
         
         token_info = session['ebay_token']
         access_token = token_info.get('access_token')
         
         if not access_token:
-            return {'error': 'Access token 无效'}, 401
+            return {'error': 'アクセストークンが無効です'}, 401
             
         task_info = get_inventory_task_by_id(access_token, task_id)
         
@@ -515,25 +516,25 @@ def query_task_by_id():
                 }
             }, 200
         else:
-            return {'error': f'未找到 task_id: {task_id} 的任务'}, 404
+            return {'error': f'タスクID: {task_id} のタスクが見つかりません'}, 404
             
     except Exception as e:
-        return {'error': f'查询任务时出错: {str(e)}'}, 500
+        return {'error': f'タスクの検索時にエラーが発生しました: {str(e)}'}, 500
 
-# 新增路由：下载任务结果文件
+# 新しいルート: タスク結果ファイルのダウンロード
 @app.route('/download-task-result/<task_id>', methods=['GET'])
 def download_task_result(task_id):
     if 'ebay_token' not in session:
-        return {'error': '未登录'}, 401
+        return {'error': 'ログインしていません'}, 401
     
     try:
         token_info = session['ebay_token']
         access_token = token_info.get('access_token')
         
         if not access_token:
-            return {'error': 'Access token 无效'}, 401
+            return {'error': 'アクセストークンが無効です'}, 401
         
-        # 使用 eBay Feed API 的 getResultFile 端点
+        # 使用 eBay Feed API の getResultFile 端点
         headers = {
             'Authorization': f'Bearer {access_token}',
             'Accept': 'application/octet-stream',  # 下载文件
@@ -542,24 +543,24 @@ def download_task_result(task_id):
         
         download_url = f'{EBAY_FEED_API_BASE_URL}/task/{task_id}/download_result_file'
         
-        print(f"=== 下载任务结果文件 ===")
+        print(f"=== ダウンロードタスク結果ファイル ===")
         print(f"URL: {download_url}")
         print(f"Task ID: {task_id}")
         
         response = requests.get(download_url, headers=headers)
-        print(f"下载响应状态码: {response.status_code}")
-        print(f"下载响应头: {response.headers}")
-        print(f"下载响应内容: {response.content}")
+        print(f"ダウンロードレスポンスステータスコード: {response.status_code}")
+        print(f"ダウンロードレスポンスヘッダー: {response.headers}")
+        print(f"ダウンロードレスポンスコンテンツ: {response.content}")
         
         if response.status_code == 200:
-            # 获取文件内容
+            # ファイル内容を取得
             file_content = response.content
             
-            # 从响应头获取原始文件名和内容类型
+            # レスポンスヘッダーから原始ファイル名とコンテンツタイプを取得
             content_disposition = response.headers.get('content-disposition', '')
             content_type = response.headers.get('content-type', 'application/octet-stream')
             
-            # 解析文件名
+            # ファイル名を解析
             filename = None
             if 'filename' in content_disposition:
                 # 提取文件名，处理可能的格式: filename = "name" 或 filename="name"
@@ -738,19 +739,19 @@ def extract_item_ids_from_zip(zip_content):
 @app.route('/generate-enhanced-csv/<task_id>', methods=['GET'])
 def generate_enhanced_csv(task_id):
     if 'ebay_token' not in session:
-        return {'error': '未登录'}, 401
+        return {'error': 'ログインしていません'}, 401
     
     try:
         token_info = session['ebay_token']
         access_token = token_info.get('access_token')
         
         if not access_token:
-            return {'error': 'Access token 无效'}, 401
+            return {'error': 'アクセストークンが無効です'}, 401
         
-        print(f"=== 生成增强CSV报告 ===")
+        print(f"=== 拡張CSVレポートの生成 ===")
         print(f"Task ID: {task_id}")
         
-        # 1. 下载ZIP文件
+        # 1. ZIPファイルをダウンロード
         headers = {
             'Authorization': f'Bearer {access_token}',
             'Accept': 'application/octet-stream',
@@ -761,42 +762,42 @@ def generate_enhanced_csv(task_id):
         response = requests.get(download_url, headers=headers)
         
         if response.status_code != 200:
-            return {'error': f'下载报告失败: HTTP {response.status_code}'}, response.status_code
+            return {'error': f'レポートのダウンロードに失敗: HTTP {response.status_code}'}, response.status_code
         
-        # 2. 从ZIP文件提取ItemID列表
+        # 2. ZIPファイルからItemIDリストを抽出
         item_ids = extract_item_ids_from_zip(response.content)
         
         if not item_ids:
-            return {'error': '未能从报告中提取到ItemID'}, 400
+            return {'error': 'ZIPファイルからItemIDを抽出できませんでした'}, 400
         
-        print(f"找到 {len(item_ids)} 个ItemID")
+        print(f"{len(item_ids)}個のItemIDが見つかりました")
         
-        # 3. 逐个调用Trading API获取详细信息
+        # 3. Trading APIを順次呼び出して詳細情報を取得
         enhanced_data = []
         failed_items = []
         
         for i, item_id in enumerate(item_ids):
-            print(f"处理 ItemID {item_id} ({i+1}/{len(item_ids)})")
+            print(f"ItemID {item_id} を処理中 ({i+1}/{len(item_ids)})")
             
-            # 调用Trading API GetItem
+            # Trading API GetItemを呼び出し
             xml_response = get_item_details_trading_api(item_id, access_token)
             
             if xml_response:
-                # 解析响应
+                # レスポンスを解析
                 item_data = parse_get_item_response(xml_response)
                 
                 if item_data:
-                    # 过滤：只处理USD货币的商品
+                    # フィルター: USD通貨の商品のみ処理
                     currency = item_data.get('Currency', '')
                     if currency != 'USD':
-                        print(f"跳过非USD商品 ItemID {item_id}, 货币: {currency}")
+                        print(f"非USD商品 ItemID {item_id} をスキップ、通貨: {currency}")
                         continue
                     
-                    # 调试：打印Item Specifics信息
+                    # デバッグ: Item Specifics情報を出力
                     item_specifics = item_data.get('ItemSpecifics', {})
-                    print(f"ItemID {item_id} (USD货币) 的 Item Specifics: {item_specifics}")
+                    print(f"ItemID {item_id} (USD通貨) の Item Specifics: {item_specifics}")
                     
-                    # 将Item Specifics展开为单独的列
+                    # Item Specificsを個別の列に展開
                     row_data = {
                         'ItemID': item_data.get('ItemID', ''),
                         'Title': item_data.get('Title', ''),
@@ -808,9 +809,9 @@ def generate_enhanced_csv(task_id):
                         'CategoryName': item_data.get('CategoryName', '')
                     }
                     
-                    # 添加Item Specifics作为单独的列
+                    # Item Specificsを個別の列として追加
                     for spec_name, spec_value in item_specifics.items():
-                        # 使用前缀避免列名冲突
+                        # プレフィックスを使用して列名の競合を回避
                         column_name = f"ItemSpecific_{spec_name}"
                         row_data[column_name] = spec_value
                     
@@ -821,13 +822,13 @@ def generate_enhanced_csv(task_id):
                 failed_items.append(item_id)
         
         if not enhanced_data:
-            return {'error': '未能获取到任何商品详细信息'}, 400
+            return {'error': '商品の詳細情報を取得できませんでした'}, 400
         
-        # 4. 创建eBay模板格式的CSV
+        # 4. eBayテンプレート形式のCSVを作成
         ebay_template_data = []
         
         for item in enhanced_data:
-            # 基本eBay模板行数据
+            # 基本的なeBayテンプレート行データ
             row = {
                 'Action': 'Revise',
                 'Category name': item.get('CategoryName', ''),
@@ -843,25 +844,25 @@ def generate_enhanced_csv(task_id):
                 'Custom label (SKU)': item.get('SKU', '')
             }
             
-            # 添加Item Specifics为C:格式
-            # 从enhanced_data中提取ItemSpecific_前缀的字段
+            # Item SpecificsをC:形式で追加
+            # enhanced_dataからItemSpecific_プレフィックスのフィールドを抽出
             for key, value in item.items():
                 if key.startswith('ItemSpecific_'):
-                    # 移除ItemSpecific_前缀，添加C:前缀
+                    # ItemSpecific_プレフィックスを削除し、C:プレフィックスを追加
                     spec_name = key.replace('ItemSpecific_', '')
                     column_name = f"C:{spec_name}"
                     row[column_name] = value
             
             ebay_template_data.append(row)
         
-        # 创建CSV内容
+        # CSVコンテンツを作成
         output = BytesIO()
         
-        # 写入INFO头部 - 作为单行三列
+        # INFOヘッダーを書き込み - 1行3列として
         info_header = "#INFO,Version=1.0.0,Template= eBay-active-revise-price-quantity-download_US\n"
         output.write(info_header.encode('utf-8-sig'))
         
-        # 创建DataFrame并写入CSV数据
+        # DataFrameを作成しCSVデータを書き込み
         df = pd.DataFrame(ebay_template_data)
         csv_content = df.to_csv(index=False, encoding='utf-8')
         output.write(csv_content.encode('utf-8'))
@@ -870,9 +871,9 @@ def generate_enhanced_csv(task_id):
         
         filename = f"ebay_revise_template_{task_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         
-        print(f"生成增强CSV完成，成功: {len(enhanced_data)}, 失败: {len(failed_items)}")
+        print(f"拡張CSVの生成完了、成功: {len(enhanced_data)}件、失敗: {len(failed_items)}件")
         if failed_items:
-            print(f"失败的ItemID: {failed_items}")
+            print(f"失敗したItemID: {failed_items}")
         
         return send_file(
             output,
@@ -882,8 +883,8 @@ def generate_enhanced_csv(task_id):
         )
         
     except Exception as e:
-        print(f"生成增强CSV时出错: {str(e)}")
-        return {'error': f'生成增强CSV时出错: {str(e)}'}, 500
+        print(f"拡張CSV生成時にエラーが発生しました: {str(e)}")
+        return {'error': f'拡張CSV生成時にエラーが発生しました: {str(e)}'}, 500
 
 @app.route('/export-csv')
 def export_csv():
@@ -891,15 +892,15 @@ def export_csv():
         return redirect(url_for('index'))
     
     if 'listings_data' not in session:
-        return {'error': '没有可导出的数据，请先生成报告'}, 400
+        return {'error': 'エクスポートするデータがありません。まずレポートを生成してください'}, 400
     
     try:
-        # 创建 DataFrame
+        # DataFrameを作成
         df = pd.DataFrame(session['listings_data'])
         
-        # 创建 CSV 文件
+        # CSVファイルを作成
         output = BytesIO()
-        df.to_csv(output, index=False, encoding='utf-8-sig')  # utf-8-sig 支持中文
+        df.to_csv(output, index=False, encoding='utf-8-sig')  # utf-8-sigは日本語をサポート
         output.seek(0)
         
         filename = f"ebay_listings_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
@@ -912,7 +913,7 @@ def export_csv():
         )
         
     except Exception as e:
-        return {'error': f'导出 CSV 时出错: {str(e)}'}, 500
+        return {'error': f'CSVエクスポート時にエラーが発生しました: {str(e)}'}, 500
 
 @app.route('/export-excel')
 def export_excel():
@@ -920,18 +921,18 @@ def export_excel():
         return redirect(url_for('index'))
     
     if 'listings_data' not in session:
-        return {'error': '没有可导出的数据，请先生成报告'}, 400
+        return {'error': 'エクスポートするデータがありません。まずレポートを生成してください'}, 400
     
     try:
-        # 创建 DataFrame
+        # DataFrameを作成
         df = pd.DataFrame(session['listings_data'])
         
-        # 创建 Excel 文件
+        # Excelファイルを作成
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df.to_excel(writer, sheet_name='eBay Listings', index=False)
             
-            # 获取工作表并设置列宽
+            # ワークシートを取得して列幅を設定
             worksheet = writer.sheets['eBay Listings']
             for column in worksheet.columns:
                 max_length = 0
@@ -957,7 +958,7 @@ def export_excel():
         )
         
     except Exception as e:
-        return {'error': f'导出 Excel 时出错: {str(e)}'}, 500
+        return {'error': f'Excelエクスポート時にエラーが発生しました: {str(e)}'}, 500
 
 if __name__ == '__main__':
     # Ensure the callback URL is correctly set for local testing

@@ -5,12 +5,12 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (generateBtn) {
         generateBtn.addEventListener('click', function() {
-            // 显示加载状态
-            statusDiv.innerHTML = '<p>正在创建 Feed 任务...</p>';
+            // レポート作成中
+            statusDiv.innerHTML = '<p>レポート作成中...</p>';
             generateBtn.disabled = true;
-            generateBtn.textContent = '创建中...';
+            generateBtn.textContent = '作成中...';
             
-            // 发送请求到后端
+            // レポート作成リクエスト
             fetch('/generate-report', {
                 method: 'POST',
                 headers: {
@@ -23,15 +23,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     statusDiv.innerHTML = `
                         <div style="background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 10px; border-radius: 5px; margin-top: 10px;">
                             <h4>${data.message}</h4>
-                            <p><strong>商品总数:</strong> ${data.data.total_items}</p>
-                            <p><strong>活跃商品:</strong> ${data.data.active_listings}</p>
-                            <p><strong>类别:</strong> ${data.data.categories.join(', ')}</p>
-                            <p><strong>生成时间:</strong> ${data.data.generated_at}</p>
-                            <p><strong>摘要:</strong> ${data.data.summary}</p>
+                            <p><strong>商品数:</strong> ${data.data.total_items}</p>
+                            <p><strong>アクティブな商品:</strong> ${data.data.active_listings}</p>
+                            <p><strong>カテゴリー:</strong> ${data.data.categories.join(', ')}</p>
+                            <p><strong>生成時間:</strong> ${data.data.generated_at}</p>
+                            <p><strong>要約:</strong> ${data.data.summary}</p>
                         </div>
                     `;
                     
-                    // 显示导出按钮
+                    // ダウンロードボタンを表示
                     const exportSection = document.getElementById('export-section');
                     if (exportSection) {
                         exportSection.style.display = 'block';
@@ -40,22 +40,22 @@ document.addEventListener('DOMContentLoaded', function() {
                     statusDiv.innerHTML = `
                         <div style="background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; padding: 10px; border-radius: 5px; margin-top: 10px;">
                             <h4>${data.message}</h4>
-                            <p><strong>任务 ID:</strong> ${data.task_id}</p>
-                            <p><strong>任务状态:</strong> ${data.data.task_status}</p>
-                            <p><strong>创建时间:</strong> ${data.data.generated_at}</p>
-                            <p><strong>说明:</strong> ${data.data.summary}</p>
-                            <p><em>请点击 "Check Feed Status" 按钮查看任务进度</em></p>
+                            <p><strong>タスクID:</strong> ${data.task_id}</p>
+                            <p><strong>タスクステータス:</strong> ${data.data.task_status}</p>
+                            <p><strong>生成時間:</strong> ${data.data.generated_at}</p>
+                            <p><strong>説明:</strong> ${data.data.summary}</p>
+                            <p><em>タスクの進行状況を確認するには、"Check Feed Status" ボタンを押してください</em></p>
                         </div>
                     `;
                     
-                    // 显示状态检查按钮
+                    // 状態チェックボタンを表示
                     if (checkStatusBtn) {
                         checkStatusBtn.style.display = 'inline-block';
                     }
                 } else {
                     statusDiv.innerHTML = `
                         <div style="background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 10px; border-radius: 5px; margin-top: 10px;">
-                            <p>错误: ${data.error}</p>
+                            <p>エラー: ${data.error}</p>
                         </div>
                     `;
                 }
@@ -63,26 +63,26 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(error => {
                 statusDiv.innerHTML = `
                     <div style="background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 10px; border-radius: 5px; margin-top: 10px;">
-                        <p>请求失败: ${error.message}</p>
+                        <p>リクエスト失敗: ${error.message}</p>
                     </div>
                 `;
             })
             .finally(() => {
-                // 恢复按钮状态
+                // ボタンの状態を復元
                 generateBtn.disabled = false;
-                generateBtn.textContent = 'Generate Item Specifics Report';
+                generateBtn.textContent = 'レポート作成';
             });
         });
     }
     
     if (checkStatusBtn) {
         checkStatusBtn.addEventListener('click', function() {
-            // 显示检查状态
-            statusDiv.innerHTML = '<p>正在检查 Feed 任务状态...</p>';
+            // レポートの状態をチェック中
+            statusDiv.innerHTML = '<p>リポート状態をチェック中...</p>';
             checkStatusBtn.disabled = true;
-            checkStatusBtn.textContent = '检查中...';
+            checkStatusBtn.textContent = 'チェック中...';
             
-            // 发送请求检查状态
+            // レポートの状態をチェックするリクエスト
             fetch('/check-feed-status', {
                 method: 'GET',
                 headers: {
@@ -95,34 +95,30 @@ document.addEventListener('DOMContentLoaded', function() {
                     statusDiv.innerHTML = `
                         <div style="background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 10px; border-radius: 5px; margin-top: 10px;">
                             <h4>${data.message}</h4>
-                            <p><strong>商品总数:</strong> ${data.data.total_items}</p>
-                            <p><strong>活跃商品:</strong> ${data.data.active_listings}</p>
-                            <p><strong>类别:</strong> ${data.data.categories.join(', ')}</p>
-                            <p><strong>完成时间:</strong> ${data.data.generated_at}</p>
-                            <p><strong>摘要:</strong> ${data.data.summary}</p>
+                            <p><strong>生成時間:</strong> ${data.data.generated_at}</p>
                         </div>
                     `;
                     
-                    // 显示导出按钮
+                    // ダウンロードボタンを表示
                     const exportSection = document.getElementById('export-section');
                     if (exportSection) {
                         exportSection.style.display = 'block';
                     }
                     
-                    // 隐藏状态检查按钮
+                    // 状態チェックボタンを非表示
                     checkStatusBtn.style.display = 'none';
                 } else if (data.status === 'in_progress') {
                     statusDiv.innerHTML = `
                         <div style="background: #cce5ff; border: 1px solid #99ccff; color: #004085; padding: 10px; border-radius: 5px; margin-top: 10px;">
                             <h4>${data.message}</h4>
-                            <p><strong>当前状态:</strong> ${data.task_status}</p>
-                            <p><em>任务仍在进行中，请稍后再次检查</em></p>
+                            <p><strong>タスクステータス:</strong> ${data.task_status}</p>
+                            <p><em>タスクがまだ進行中です。しばらくしてから再度確認してください。</em></p>
                         </div>
                     `;
                 } else {
                     statusDiv.innerHTML = `
                         <div style="background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 10px; border-radius: 5px; margin-top: 10px;">
-                            <p>错误: ${data.error}</p>
+                            <p>エラー: ${data.error}</p>
                         </div>
                     `;
                 }
@@ -130,12 +126,12 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(error => {
                 statusDiv.innerHTML = `
                     <div style="background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 10px; border-radius: 5px; margin-top: 10px;">
-                        <p>请求失败: ${error.message}</p>
+                        <p>リクエスト失敗: ${error.message}</p>
                     </div>
                 `;
             })
             .finally(() => {
-                // 恢复按钮状态
+                // ボタンの状態を復元
                 checkStatusBtn.disabled = false;
                 checkStatusBtn.textContent = 'Check Feed Status';
             });
@@ -154,15 +150,15 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!taskId) {
                 taskQueryResult.innerHTML = `
                     <div style="background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 10px; border-radius: 5px;">
-                        <p>请输入任务ID</p>
+                        <p>タスクIDを入力してください</p>
                     </div>
                 `;
                 return;
             }
             
-            taskQueryResult.innerHTML = '<p>正在查询任务状态...</p>';
+            taskQueryResult.innerHTML = '<p>タスク状態を検索中...</p>';
             queryTaskBtn.disabled = true;
-            queryTaskBtn.textContent = '查询中...';
+            queryTaskBtn.textContent = '検索中...';
             
             fetch('/query-task-by-id', {
                 method: 'POST',
@@ -176,49 +172,47 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.status === 'success') {
                     const task = data.task;
                     const downloadButton = task.status === 'COMPLETED' ? 
-                        `<div style="margin-top: 10px;">
+                        `<div class="action-group" style="margin-top: 15px;">
                             <a href="/download-task-result/${task.task_id}" 
-                               style="padding: 8px 16px; background-color: #007bff; color: white; text-decoration: none; border-radius: 4px; display: inline-block; margin-right: 10px;"
-                               class="download-btn">
-                               下载结果文件
+                               class="btn btn-primary download-btn">
+                               📥 元ファイルダウンロード
                             </a>
                             <button onclick="generateEnhancedCSV('${task.task_id}')" 
-                               style="padding: 8px 16px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;"
-                               class="enhanced-csv-btn" id="enhanced-csv-${task.task_id}">
-                               生成增强CSV (含Item Specifics)
+                               class="btn btn-success enhanced-csv-btn" id="enhanced-csv-${task.task_id}">
+                               📊 拡張CSV生成
                             </button>
                          </div>` : '';
                     
                     taskQueryResult.innerHTML = `
-                        <div style="background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 10px; border-radius: 5px;">
-                            <h4>任务详情</h4>
-                            <p><strong>任务ID:</strong> ${task.task_id}</p>
-                            <p><strong>状态:</strong> ${task.status}</p>
-                            <p><strong>创建时间:</strong> ${task.creation_date || 'N/A'}</p>
-                            <p><strong>完成时间:</strong> ${task.completion_date || 'N/A'}</p>
-                            <p><strong>Feed类型:</strong> ${task.feed_type}</p>
-                            ${task.schema_version ? `<p><strong>Schema版本:</strong> ${task.schema_version}</p>` : ''}
+                        <div class="status-message status-success">
+                            <h4>タスク詳細</h4>
+                            <p><strong>タスクID:</strong> ${task.task_id}</p>
+                            <p><strong>ステータス:</strong> <span class="report-status status-${task.status.toLowerCase()}">${task.status}</span></p>
+                            <p><strong>作成時間:</strong> ${task.creation_date || 'N/A'}</p>
+                            <p><strong>完了時間:</strong> ${task.completion_date || 'N/A'}</p>
+                            <p><strong>Feedタイプ:</strong> ${task.feed_type}</p>
+                            ${task.schema_version ? `<p><strong>Schemaバージョン:</strong> ${task.schema_version}</p>` : ''}
                             ${downloadButton}
                         </div>
                     `;
                 } else {
                     taskQueryResult.innerHTML = `
-                        <div style="background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 10px; border-radius: 5px;">
-                            <p>错误: ${data.error}</p>
+                        <div class="status-message status-error">
+                            <p>検索失敗: ${data.error}</p>
                         </div>
                     `;
                 }
             })
             .catch(error => {
                 taskQueryResult.innerHTML = `
-                    <div style="background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 10px; border-radius: 5px;">
-                        <p>请求失败: ${error.message}</p>
+                    <div class="status-message status-error">
+                        <p>リクエスト失敗: ${error.message}</p>
                     </div>
                 `;
             })
             .finally(() => {
                 queryTaskBtn.disabled = false;
-                queryTaskBtn.textContent = '查询任务状态';
+                queryTaskBtn.textContent = 'ステータス検索';
             });
         });
     }
@@ -232,9 +226,9 @@ document.addEventListener('DOMContentLoaded', function() {
         getRecentReportsBtn.addEventListener('click', function() {
             const days = daysInput.value || 7;
             
-            recentReportsList.innerHTML = '<p>正在获取最近的报告...</p>';
+            recentReportsList.innerHTML = '<p>最近のリポートを取得中...</p>';
             getRecentReportsBtn.disabled = true;
-            getRecentReportsBtn.textContent = '获取中...';
+            getRecentReportsBtn.textContent = '取得中...';
             
             fetch(`/get-recent-reports?days=${days}`, {
                 method: 'GET',
@@ -247,68 +241,66 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.status === 'success') {
                     if (data.tasks && data.tasks.length > 0) {
                         let tasksHtml = `
-                            <div style="background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 10px; border-radius: 5px;">
-                                <h4>找到 ${data.total_count} 个任务</h4>
-                                <div style="max-height: 300px; overflow-y: auto;">
+                            <div class="status-message status-success">
+                                <h4>📋 ${data.total_count} 個のタスクが見つかりました</h4>
+                            </div>
+                            <div class="reports-grid" style="max-height: 400px; overflow-y: auto;">
                         `;
                         
                         data.tasks.forEach(task => {
-                            const statusColor = task.status === 'COMPLETED' ? '#28a745' : 
-                                              task.status === 'FAILED' ? '#dc3545' : '#ffc107';
-                            
                             const downloadButton = task.status === 'COMPLETED' ? 
-                                `<div style="margin-top: 8px;">
+                                `<div class="action-group" style="margin-top: 15px;">
                                     <a href="/download-task-result/${task.task_id}" 
-                                       style="padding: 6px 12px; background-color: #007bff; color: white; text-decoration: none; border-radius: 3px; font-size: 12px; margin-right: 8px;"
-                                       class="download-btn">
-                                       下载结果文件
+                                       class="btn btn-primary download-btn">
+                                       📥 元ファイルダウンロード
                                     </a>
                                     <button onclick="generateEnhancedCSV('${task.task_id}')" 
-                                       style="padding: 6px 12px; background-color: #28a745; color: white; border: none; border-radius: 3px; font-size: 12px; cursor: pointer;"
-                                       class="enhanced-csv-btn" id="enhanced-csv-list-${task.task_id}">
-                                       增强CSV
+                                       class="btn btn-success enhanced-csv-btn" id="enhanced-csv-list-${task.task_id}">
+                                       📊 拡張CSV生成
                                     </button>
                                  </div>` : '';
                             
                             tasksHtml += `
-                                <div style="border: 1px solid #ddd; margin: 5px 0; padding: 10px; border-radius: 3px; background: white;">
-                                    <p><strong>任务ID:</strong> ${task.task_id}</p>
-                                    <p><strong>状态:</strong> <span style="color: ${statusColor}; font-weight: bold;">${task.status}</span></p>
-                                    <p><strong>创建时间:</strong> ${task.creation_date || 'N/A'}</p>
-                                    <p><strong>完成时间:</strong> ${task.completion_date || 'N/A'}</p>
-                                    <p><strong>Feed类型:</strong> ${task.feed_type}</p>
+                                <div class="report-item">
+                                    <div class="report-meta">
+                                        <strong>タスクID: ${task.task_id}</strong>
+                                        <span class="report-status status-${task.status.toLowerCase()}">${task.status}</span>
+                                    </div>
+                                    <p><strong>作成時間:</strong> ${task.creation_date || 'N/A'}</p>
+                                    <p><strong>完了時間:</strong> ${task.completion_date || 'N/A'}</p>
+                                    <p><strong>Feedタイプ:</strong> ${task.feed_type}</p>
                                     ${downloadButton}
                                 </div>
                             `;
                         });
                         
-                        tasksHtml += '</div></div>';
+                        tasksHtml += '</div>';
                         recentReportsList.innerHTML = tasksHtml;
                     } else {
                         recentReportsList.innerHTML = `
-                            <div style="background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; padding: 10px; border-radius: 5px;">
-                                <p>${data.message || `最近 ${days} 天内没有找到任务`}</p>
+                            <div class="status-message status-info">
+                                <p>📭 タスクが見つかりません</p>
                             </div>
                         `;
                     }
                 } else {
                     recentReportsList.innerHTML = `
-                        <div style="background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 10px; border-radius: 5px;">
-                            <p>错误: ${data.error}</p>
+                        <div class="status-message status-error">
+                            <p>タスク取得失敗: ${data.error}</p>
                         </div>
                     `;
                 }
             })
             .catch(error => {
                 recentReportsList.innerHTML = `
-                    <div style="background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 10px; border-radius: 5px;">
-                        <p>请求失败: ${error.message}</p>
+                    <div class="status-message status-error">
+                        <p>リクエスト失敗: ${error.message}</p>
                     </div>
                 `;
             })
             .finally(() => {
                 getRecentReportsBtn.disabled = false;
-                getRecentReportsBtn.textContent = '获取最近报告';
+                getRecentReportsBtn.textContent = 'レポート取得';
             });
         });
     }
@@ -319,7 +311,7 @@ let isGeneratingCSV = false;
 
 function generateEnhancedCSV(taskId) {
     if (isGeneratingCSV) {
-        alert('正在生成CSV，请稍候...');
+        alert('CSV生成中です。しばらくお待ちください...');
         return;
     }
     
@@ -363,8 +355,8 @@ function generateEnhancedCSV(taskId) {
             document.body.removeChild(a);
         })
         .catch(error => {
-            console.error('下载失败:', error);
-            alert('下载失败，请重试');
+            console.error('ダウンロード失敗:', error);
+            alert('ダウンロード失敗しました。再試行してください');
         })
         .finally(() => {
             isGeneratingCSV = false;
@@ -380,7 +372,7 @@ function generateEnhancedCSV(taskId) {
             
             // 恢复按钮文本
             if (targetBtn) {
-                targetBtn.innerHTML = '生成增强CSV (含Item Specifics)';
+                targetBtn.innerHTML = '📊 拡張CSV生成';
             }
         });
 }
