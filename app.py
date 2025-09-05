@@ -11,6 +11,18 @@ from io import BytesIO
 import logging
 from config import config
 from xml_processor import XMLProcessor
+import ssl
+import urllib3
+
+# SSL configuration to prevent recursion errors
+ssl._create_default_https_context = ssl._create_unverified_context
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# Create a custom requests session with SSL configuration
+def create_ssl_session():
+    session = requests.Session()
+    session.verify = False
+    return session
 
 # 環境に応じた設定を読み込み
 config_name = os.environ.get('FLASK_ENV', 'development')
@@ -123,7 +135,8 @@ def callback():
     }
 
     try:
-        response = requests.post(EBAY_TOKEN_URL, headers=headers, data=data)
+        ssl_session = create_ssl_session()
+        response = ssl_session.post(EBAY_TOKEN_URL, headers=headers, data=data)
         response.raise_for_status()
         
         token_data = response.json()
@@ -164,7 +177,8 @@ def create_inventory_task(access_token):
     print(f"Payload: {payload}")
     
     try:
-        response = requests.post(EBAY_INVENTORY_REPORT_URL, headers=headers, json=payload)
+        ssl_session = create_ssl_session()
+        response = ssl_session.post(EBAY_INVENTORY_REPORT_URL, headers=headers, json=payload)
         print(f"レスポンスステータスコード: {response.status_code}")
         print(f"レスポンスヘッダー: {response.headers}")
         print(f"レスポンス内容: {response.text}")
@@ -214,7 +228,8 @@ def get_inventory_task_status(access_token, task_id):
     }
     
     try:
-        response = requests.get(f'{EBAY_INVENTORY_REPORT_DOWNLOAD_URL.format(task_id=task_id)}', headers=headers)
+        ssl_session = create_ssl_session()
+        response = ssl_session.get(f'{EBAY_INVENTORY_REPORT_DOWNLOAD_URL.format(task_id=task_id)}', headers=headers)
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
@@ -234,7 +249,8 @@ def get_inventory_task_by_id(access_token, task_id):
     url = f'{EBAY_INVENTORY_REPORT_URL}/{task_id}'
     
     try:
-        response = requests.get(url, headers=headers)
+        ssl_session = create_ssl_session()
+        response = ssl_session.get(url, headers=headers)
         print(f"単一タスクステータスチェックレスポンスステータスコード: {response.status_code}")
         print(f"単一タスクステータスチェックレスポンス内容: {response.text}")
         
@@ -269,7 +285,8 @@ def get_recent_inventory_tasks(access_token, days=7):
     }
     
     try:
-        response = requests.get(EBAY_INVENTORY_REPORT_URL, headers=headers, params=params)
+        ssl_session = create_ssl_session()
+        response = ssl_session.get(EBAY_INVENTORY_REPORT_URL, headers=headers, params=params)
         print(f"最近のタスクリストレスポンスステータスコード: {response.status_code}")
         print(f"最近のタスクリストレスポンス内容: {response.text}")
         
@@ -293,7 +310,8 @@ def download_inventory_result(access_token, task_id):
     print(f"Task ID: {task_id}")
     
     try:
-        response = requests.get(download_url, headers=headers)
+        ssl_session = create_ssl_session()
+        response = ssl_session.get(download_url, headers=headers)
         response.raise_for_status()
         return response.json()  # Inventory API は通常 JSON 形式で返す
     except requests.RequestException as e:
@@ -575,7 +593,8 @@ def download_task_result(task_id):
         print(f"URL: {download_url}")
         print(f"Task ID: {task_id}")
         
-        response = requests.get(download_url, headers=headers)
+        ssl_session = create_ssl_session()
+        response = ssl_session.get(download_url, headers=headers)
         print(f"ダウンロードレスポンスステータスコード: {response.status_code}")
         print(f"ダウンロードレスポンスヘッダー: {response.headers}")
         print(f"ダウンロードレスポンスコンテンツ: {response.content}")
@@ -639,7 +658,8 @@ def get_item_details_trading_api(item_id, auth_token):
     </GetItemRequest>'''
     
     try:
-        response = requests.post(EBAY_TRADING_API_URL, headers=headers, data=xml_request)
+        ssl_session = create_ssl_session()
+        response = ssl_session.post(EBAY_TRADING_API_URL, headers=headers, data=xml_request)
         response.raise_for_status()
         return response.text
     except requests.RequestException as e:
@@ -787,7 +807,8 @@ def generate_enhanced_csv(task_id):
         }
         
         download_url = f'{EBAY_FEED_API_BASE_URL}/task/{task_id}/download_result_file'
-        response = requests.get(download_url, headers=headers)
+        ssl_session = create_ssl_session()
+        response = ssl_session.get(download_url, headers=headers)
         
         if response.status_code != 200:
             return {'error': f'レポートのダウンロードに失敗: HTTP {response.status_code}'}, response.status_code
