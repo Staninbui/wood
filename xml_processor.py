@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class XMLProcessor:
     """XML処理を最適化するクラス"""
     
-    def __init__(self, max_workers: int = 2, timeout: int = 300):
+    def __init__(self, max_workers: int = 8, timeout: int = 300):
         self.max_workers = max_workers
         self.timeout = timeout
     
@@ -65,12 +65,14 @@ class XMLProcessor:
         results = []
         failed_items = []
         
+        logger.info(f"開始処理 {len(item_ids)} 個のItemID、並列度: {self.max_workers}")
+        
         def fetch_single_item(item_id: str) -> Optional[Dict]:
             """単一アイテムの詳細を取得"""
             try:
                 logger.info(f"ItemID {item_id} の詳細取得を開始")
-                # Add delay to avoid overwhelming eBay API
-                time.sleep(0.5)
+                # Reduced delay for better performance
+                time.sleep(0.1)
                 xml_response = self._get_item_details_trading_api(item_id, access_token)
                 if xml_response:
                     logger.info(f"ItemID {item_id} のXMLレスポンス取得成功")
@@ -87,7 +89,8 @@ class XMLProcessor:
                 logger.error(f"ItemID {item_id} の取得エラー: {e}")
                 return None
         
-        # 並列処理でアイテム詳細を取得
+        # 並列処理でアイテム詳細を取得（進捗表示付き）
+        start_time = time.time()
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             # タスクを送信
             future_to_item_id = {
@@ -95,25 +98,32 @@ class XMLProcessor:
                 for item_id in item_ids
             }
             
-            # 結果を収集
+            # 結果を収集（進捗表示付き）
+            completed_count = 0
+            total_count = len(item_ids)
+            
             for future in as_completed(future_to_item_id, timeout=self.timeout):
                 item_id = future_to_item_id[future]
+                completed_count += 1
+                
                 try:
                     result = future.result()
                     if result:
                         # USD通貨のみフィルタリング
                         if result.get('Currency') == 'USD':
                             results.append(result)
-                            logger.info(f"ItemID {item_id} (USD) 処理完了")
+                            logger.info(f"ItemID {item_id} (USD) 処理完了 ({completed_count}/{total_count})")
                         else:
-                            logger.info(f"ItemID {item_id} スキップ (通貨: {result.get('Currency', 'N/A')})")
+                            logger.info(f"ItemID {item_id} スキップ (通貨: {result.get('Currency', 'N/A')}) ({completed_count}/{total_count})")
                     else:
                         failed_items.append(item_id)
+                        logger.info(f"ItemID {item_id} 失敗 ({completed_count}/{total_count})")
                 except Exception as e:
-                    logger.error(f"ItemID {item_id} 処理エラー: {e}")
+                    logger.error(f"ItemID {item_id} 処理エラー: {e} ({completed_count}/{total_count})")
                     failed_items.append(item_id)
         
-        logger.info(f"処理完了 - 成功: {len(results)}, 失敗: {len(failed_items)}")
+        elapsed_time = time.time() - start_time
+        logger.info(f"処理完了 - 成功: {len(results)}, 失敗: {len(failed_items)}, 処理時間: {elapsed_time:.2f}秒")
         return results
     
     def _get_item_details_trading_api(self, item_id: str, auth_token: str) -> Optional[str]:
@@ -143,7 +153,7 @@ class XMLProcessor:
             ]
             
             logger.info(f"ItemID {item_id} curl実行開始")
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
             
             if result.returncode == 0:
                 logger.info(f"ItemID {item_id} curl成功、レスポンス長: {len(result.stdout)}")
