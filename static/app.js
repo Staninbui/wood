@@ -554,9 +554,25 @@ function showProgressModal(taskId) {
     
     // 更新进度显示的函数
     function updateProgress(data) {
+        // 检查模态框是否还存在
+        if (!document.getElementById('progressModal')) {
+            console.log('Progress modal not found, stopping updates');
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+            }
+            return;
+        }
+        
         if (data.error) {
-            document.getElementById('progressMessage').textContent = 'エラー: ' + data.error;
-            document.getElementById('closeProgress').style.display = 'block';
+            // 确保切换到进度视图以显示错误
+            if (!taskStarted) {
+                switchToProgressView();
+            }
+            
+            const messageEl = document.getElementById('progressMessage');
+            const closeEl = document.getElementById('closeProgress');
+            if (messageEl) messageEl.textContent = 'エラー: ' + data.error;
+            if (closeEl) closeEl.style.display = 'block';
             isGeneratingCSV = false;
             return;
         }
@@ -564,43 +580,61 @@ function showProgressModal(taskId) {
         // 添加调试信息
         console.log('Progress update:', data);
         
-        // 更新进度显示
+        // 确保已切换到进度视图
+        if (!taskStarted) {
+            taskStarted = true;
+            switchToProgressView();
+        }
+        
+        // 安全地更新进度显示
         const percentage = Math.round(data.progress_percentage || 0);
-        document.getElementById('progressFill').style.width = percentage + '%';
-        document.getElementById('progressPercentage').textContent = percentage + '%';
-        document.getElementById('progressMessage').textContent = data.message || '処理中...';
-        document.getElementById('currentStep').textContent = data.current_step || 0;
-        document.getElementById('totalSteps').textContent = data.total_steps || 5;
-        document.getElementById('currentItem').textContent = data.current_item || 0;
-        document.getElementById('totalItems').textContent = data.total_items || 0;
-        document.getElementById('elapsedTime').textContent = data.elapsed_time || 0;
+        const fillEl = document.getElementById('progressFill');
+        const percentageEl = document.getElementById('progressPercentage');
+        const messageEl = document.getElementById('progressMessage');
+        const stepEl = document.getElementById('currentStep');
+        const totalStepsEl = document.getElementById('totalSteps');
+        const itemEl = document.getElementById('currentItem');
+        const totalItemsEl = document.getElementById('totalItems');
+        const timeEl = document.getElementById('elapsedTime');
+        
+        if (fillEl) fillEl.style.width = percentage + '%';
+        if (percentageEl) percentageEl.textContent = percentage + '%';
+        if (messageEl) messageEl.textContent = data.message || '処理中...';
+        if (stepEl) stepEl.textContent = data.current_step || 0;
+        if (totalStepsEl) totalStepsEl.textContent = data.total_steps || 5;
+        if (itemEl) itemEl.textContent = data.current_item || 0;
+        if (totalItemsEl) totalItemsEl.textContent = data.total_items || 0;
+        if (timeEl) timeEl.textContent = data.elapsed_time || 0;
         
         // 如果完成，触发下载 - 检查多种完成状态
         if ((data.status === 'completed' || percentage >= 100) && !downloadTriggered) {
             console.log('任务完成，准备下载文件');
             downloadTriggered = true;
-            document.getElementById('closeProgress').style.display = 'block';
-            isGeneratingCSV = false;
             
+            // 停止所有轮询和SSE连接
             if (pollingInterval) {
                 clearInterval(pollingInterval);
+                pollingInterval = null;
             }
             
-            // 下载文件 - 添加更详细的错误处理
-            setTimeout(() => {
-                console.log('开始下载文件...');
-                fetch(`/generate-enhanced-csv/${taskId}`)
-                .then(response => {
-                    console.log('下载响应状态:', response.status);
-                    if (response.ok) {
-                        return response.blob();
-                    } else {
-                        // 如果GET请求失败，可能文件还没准备好，再等一会儿
-                        throw new Error(`下载失败: HTTP ${response.status}`);
-                    }
-                })
-                .then(blob => {
-                    console.log('文件blob大小:', blob.size);
+            const closeEl = document.getElementById('closeProgress');
+            if (closeEl) closeEl.style.display = 'block';
+            isGeneratingCSV = false;
+            
+            // 单次下载，避免重复
+            console.log('开始下载文件...');
+            fetch(`/generate-enhanced-csv/${taskId}`)
+            .then(response => {
+                console.log('下载响应状态:', response.status);
+                if (response.ok) {
+                    return response.blob();
+                } else {
+                    throw new Error(`下载失败: HTTP ${response.status}`);
+                }
+            })
+            .then(blob => {
+                console.log('文件blob大小:', blob.size);
+                if (blob.size > 0) {
                     const url = window.URL.createObjectURL(blob);
                     const link = document.createElement('a');
                     link.href = url;
@@ -610,42 +644,23 @@ function showProgressModal(taskId) {
                     document.body.removeChild(link);
                     window.URL.revokeObjectURL(url);
                     console.log('文件下载完成');
-                })
-                .catch(error => {
-                    console.error('ダウンロードエラー:', error);
-                    // 如果下载失败，尝试延迟重试
-                    setTimeout(() => {
-                        console.log('重试下载...');
-                        fetch(`/generate-enhanced-csv/${taskId}`)
-                        .then(response => {
-                            if (response.ok) {
-                                return response.blob();
-                            }
-                            throw new Error('重试下载失败');
-                        })
-                        .then(blob => {
-                            const url = window.URL.createObjectURL(blob);
-                            const link = document.createElement('a');
-                            link.href = url;
-                            link.download = `ebay_revise_template_${taskId}_${new Date().toISOString().slice(0,19).replace(/[-:]/g, '').replace('T', '_')}.csv`;
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            window.URL.revokeObjectURL(url);
-                            console.log('重试下载成功');
-                        })
-                        .catch(retryError => {
-                            console.error('重试下载也失败:', retryError);
-                            alert('ファイルのダウンロードに失敗しました。ページを更新して再試行してください。');
-                        });
-                    }, 2000);
-                });
-            }, 1000); // 增加延迟时间，确保文件已保存
+                } else {
+                    throw new Error('下载的文件为空');
+                }
+            })
+            .catch(error => {
+                console.error('ダウンロードエラー:', error);
+                if (messageEl) {
+                    messageEl.textContent = 'ダウンロードエラー: ' + error.message;
+                }
+            });
         } else if (data.status === 'failed') {
-            document.getElementById('closeProgress').style.display = 'block';
+            const closeEl = document.getElementById('closeProgress');
+            if (closeEl) closeEl.style.display = 'block';
             isGeneratingCSV = false;
             if (pollingInterval) {
                 clearInterval(pollingInterval);
+                pollingInterval = null;
             }
         }
     }
@@ -656,6 +671,8 @@ function closeProgressModal() {
     if (modal) {
         modal.remove();
     }
+    // 重置全局状态
+    isGeneratingCSV = false;
 }
 
 // 生成增强CSV的函数，带实时进度显示
