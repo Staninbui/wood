@@ -482,6 +482,9 @@ function showProgressModal(taskId) {
             return;
         }
         
+        // 添加调试信息
+        console.log('Progress update:', data);
+        
         // 更新进度显示
         const percentage = Math.round(data.progress_percentage || 0);
         document.getElementById('progressFill').style.width = percentage + '%';
@@ -493,8 +496,9 @@ function showProgressModal(taskId) {
         document.getElementById('totalItems').textContent = data.total_items || 0;
         document.getElementById('elapsedTime').textContent = data.elapsed_time || 0;
         
-        // 如果完成，触发下载
-        if (data.status === 'completed' && !downloadTriggered) {
+        // 如果完成，触发下载 - 检查多种完成状态
+        if ((data.status === 'completed' || percentage >= 100) && !downloadTriggered) {
+            console.log('任务完成，准备下载文件');
             downloadTriggered = true;
             document.getElementById('closeProgress').style.display = 'block';
             isGeneratingCSV = false;
@@ -503,16 +507,21 @@ function showProgressModal(taskId) {
                 clearInterval(pollingInterval);
             }
             
-            // 下载文件
+            // 下载文件 - 添加更详细的错误处理
             setTimeout(() => {
+                console.log('开始下载文件...');
                 fetch(`/generate-enhanced-csv/${taskId}`)
                 .then(response => {
+                    console.log('下载响应状态:', response.status);
                     if (response.ok) {
                         return response.blob();
+                    } else {
+                        // 如果GET请求失败，可能文件还没准备好，再等一会儿
+                        throw new Error(`下载失败: HTTP ${response.status}`);
                     }
-                    throw new Error('ダウンロード失敗');
                 })
                 .then(blob => {
+                    console.log('文件blob大小:', blob.size);
                     const url = window.URL.createObjectURL(blob);
                     const link = document.createElement('a');
                     link.href = url;
@@ -521,11 +530,38 @@ function showProgressModal(taskId) {
                     link.click();
                     document.body.removeChild(link);
                     window.URL.revokeObjectURL(url);
+                    console.log('文件下载完成');
                 })
                 .catch(error => {
                     console.error('ダウンロードエラー:', error);
+                    // 如果下载失败，尝试延迟重试
+                    setTimeout(() => {
+                        console.log('重试下载...');
+                        fetch(`/generate-enhanced-csv/${taskId}`)
+                        .then(response => {
+                            if (response.ok) {
+                                return response.blob();
+                            }
+                            throw new Error('重试下载失败');
+                        })
+                        .then(blob => {
+                            const url = window.URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = `ebay_revise_template_${taskId}_${new Date().toISOString().slice(0,19).replace(/[-:]/g, '').replace('T', '_')}.csv`;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            window.URL.revokeObjectURL(url);
+                            console.log('重试下载成功');
+                        })
+                        .catch(retryError => {
+                            console.error('重试下载也失败:', retryError);
+                            alert('ファイルのダウンロードに失敗しました。ページを更新して再試行してください。');
+                        });
+                    }, 2000);
                 });
-            }, 500);
+            }, 1000); // 增加延迟时间，确保文件已保存
         } else if (data.status === 'failed') {
             document.getElementById('closeProgress').style.display = 'block';
             isGeneratingCSV = false;
