@@ -250,14 +250,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         data.tasks.forEach(task => {
                             const downloadButton = task.status === 'COMPLETED' ? 
                                 `<div class="action-group" style="margin-top: 15px;">
-                                    <a href="/download-task-result/${task.task_id}" 
-                                       class="btn btn-primary download-btn">
-                                       📥 元ファイルダウンロード
-                                    </a>
-                                    <button onclick="generateEnhancedCSV('${task.task_id}')" 
-                                       class="btn btn-success enhanced-csv-btn" id="enhanced-csv-list-${task.task_id}">
-                                       📊 拡張CSV生成
-                                    </button>
+                                    <p>タスクIDをコピーして、タスク検索ボックスに貼り付けてください</p>
                                  </div>` : '';
                             
                             tasksHtml += `
@@ -315,7 +308,15 @@ function showProgressModal(taskId) {
         <div class="modal-overlay">
             <div class="modal-content">
                 <h3>CSV生成中</h3>
-                <div class="progress-container">
+                <div id="loadingState" class="loading-container">
+                    <div class="hourglass">
+                        <div class="hourglass-top"></div>
+                        <div class="hourglass-bottom"></div>
+                        <div class="sand"></div>
+                    </div>
+                    <p>タスクを準備中...</p>
+                </div>
+                <div id="progressState" class="progress-container" style="display:none;">
                     <div class="progress-bar">
                         <div class="progress-fill" id="progressFill"></div>
                     </div>
@@ -323,11 +324,11 @@ function showProgressModal(taskId) {
                         <span id="progressPercentage">0%</span>
                         <span id="progressMessage">処理中...</span>
                     </div>
-                </div>
-                <div class="progress-details">
-                    <div>ステップ: <span id="currentStep">0</span>/<span id="totalSteps">5</span></div>
-                    <div>項目: <span id="currentItem">0</span>/<span id="totalItems">0</span></div>
-                    <div>経過時間: <span id="elapsedTime">0</span>秒</div>
+                    <div class="progress-details">
+                        <div>ステップ: <span id="currentStep">0</span>/<span id="totalSteps">5</span></div>
+                        <div>項目: <span id="currentItem">0</span>/<span id="totalItems">0</span></div>
+                        <div>経過時間: <span id="elapsedTime">0</span>秒</div>
+                    </div>
                 </div>
                 <button id="closeProgress" style="display:none;" onclick="closeProgressModal()">閉じる</button>
             </div>
@@ -355,6 +356,56 @@ function showProgressModal(taskId) {
             border-radius: 8px;
             min-width: 400px;
             text-align: center;
+        }
+        .loading-container {
+            margin: 30px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .hourglass {
+            position: relative;
+            width: 40px;
+            height: 60px;
+            margin-bottom: 15px;
+        }
+        .hourglass-top, .hourglass-bottom {
+            position: absolute;
+            width: 40px;
+            height: 25px;
+            border: 3px solid #4CAF50;
+        }
+        .hourglass-top {
+            top: 0;
+            border-bottom: none;
+            border-radius: 20px 20px 0 0;
+            background: linear-gradient(to bottom, #FFD700 0%, #FFD700 60%, transparent 60%);
+            animation: sandFlow 2s ease-in-out infinite;
+        }
+        .hourglass-bottom {
+            bottom: 0;
+            border-top: none;
+            border-radius: 0 0 20px 20px;
+            background: linear-gradient(to top, #FFD700 0%, #FFD700 40%, transparent 40%);
+        }
+        .sand {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 2px;
+            height: 10px;
+            background: #FFD700;
+            animation: sandDrop 2s ease-in-out infinite;
+        }
+        @keyframes sandFlow {
+            0% { background: linear-gradient(to bottom, #FFD700 0%, #FFD700 60%, transparent 60%); }
+            50% { background: linear-gradient(to bottom, #FFD700 0%, #FFD700 30%, transparent 30%); }
+            100% { background: linear-gradient(to bottom, #FFD700 0%, #FFD700 60%, transparent 60%); }
+        }
+        @keyframes sandDrop {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 1; }
         }
         .progress-container {
             margin: 20px 0;
@@ -396,24 +447,45 @@ function showProgressModal(taskId) {
     let downloadTriggered = false;
     let usePolling = false;
     let pollingInterval = null;
+    let taskStarted = false;
+    let pollAttempts = 0;
+    const maxPollAttempts = 30; // 最多轮询30次（30秒）
     
     // 轮询函数
     function pollProgress() {
+        pollAttempts++;
+        
         fetch(`/progress-poll/${taskId}`)
         .then(response => response.json())
         .then(data => {
             if (data.status === 'success') {
+                // 任务已开始，切换到进度显示
+                if (!taskStarted) {
+                    taskStarted = true;
+                    switchToProgressView();
+                }
                 updateProgress(data.data);
             } else {
-                // 只有在任务真正不存在时才显示错误，避免间歇性错误
-                console.warn('轮询获取进度失败:', data.error);
-                // 不立即显示错误，给任务一些时间启动
+                // 如果轮询次数超过限制，显示错误
+                if (pollAttempts >= maxPollAttempts) {
+                    updateProgress({error: 'タスクの開始がタイムアウトしました'});
+                }
+                // 否则继续等待，不显示错误
+                console.warn(`轮询获取进度失败 (${pollAttempts}/${maxPollAttempts}):`, data.error);
             }
         })
         .catch(error => {
             console.error('轮询错误:', error);
-            // 同样不立即显示连接错误
+            if (pollAttempts >= maxPollAttempts) {
+                updateProgress({error: '接続エラー'});
+            }
         });
+    }
+    
+    // 切换到进度显示视图
+    function switchToProgressView() {
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('progressState').style.display = 'block';
     }
     
     // 先尝试SSE连接
@@ -427,6 +499,13 @@ function showProgressModal(taskId) {
     
     eventSource.onmessage = function(event) {
         const data = JSON.parse(event.data);
+        
+        // SSE有数据，切换到进度显示
+        if (!taskStarted) {
+            taskStarted = true;
+            switchToProgressView();
+        }
+        
         updateProgress(data);
         
         // 如果SSE正常工作，确保不启动轮询
