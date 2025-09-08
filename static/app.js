@@ -513,9 +513,22 @@ function showProgressModal(taskId) {
         document.getElementById('progressState').style.display = 'block';
     }
     
-    // 先尝试SSE连接
-    const eventSource = new EventSource(`/progress/${taskId}`);
-    let sseConnected = false;
+    // 在Cloud Run环境下，优先使用轮询而不是SSE
+    const isCloudRun = window.location.hostname.includes('run.app') || window.location.hostname.includes('.a.run.app');
+    
+    if (isCloudRun) {
+        console.log('检测到Cloud Run环境，使用轮询模式');
+        usePolling = true;
+        // 延迟启动轮询，给任务时间启动
+        setTimeout(() => {
+            if (!downloadTriggered && usePolling) {
+                pollingInterval = setInterval(pollProgress, 3000);
+            }
+        }, 2000);
+    } else {
+        // 本地环境尝试SSE连接
+        const eventSource = new EventSource(`/progress/${taskId}`);
+        let sseConnected = false;
     
     eventSource.onopen = function(event) {
         console.log('SSE连接已建立');
@@ -613,6 +626,25 @@ function showProgressModal(taskId) {
             pollingInterval = setInterval(pollProgress, 3000);
         }
     }, 3000);
+    }
+    
+    // 延迟触发后端处理，确保连接已建立
+    setTimeout(() => {
+        fetch(`/generate-enhanced-csv/${taskId}`, {
+            method: 'HEAD'  // 使用HEAD请求只触发处理，不等待响应
+        }).then(response => {
+            if (response.status === 404) {
+                console.error('任务不存在，无法触发处理');
+                updateProgress({error: 'タスクが見つかりません。ページを更新してください。'});
+                return;
+            }
+            console.log('Backend processing triggered, status:', response.status);
+        }).catch(error => {
+            console.log('Backend processing triggered with error:', error);
+            // 如果是网络错误，可能是任务不存在
+            updateProgress({error: 'タスクの処理を開始できません。ページを更新してください。'});
+        });
+    }, 200);
     
     // 更新进度显示的函数
     function updateProgress(data) {

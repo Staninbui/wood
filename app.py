@@ -1103,6 +1103,10 @@ def progress_stream(task_id):
             # 发送初始连接确认
             yield f"data: {json.dumps({'status': 'connected', 'task_id': task_id})}\n\n"
             
+            # Cloud Run环境需要立即flush
+            import sys
+            sys.stdout.flush()
+            
             # 最多等待60秒
             max_iterations = 60
             iteration = 0
@@ -1151,6 +1155,9 @@ def progress_stream(task_id):
     response.headers['Connection'] = 'keep-alive'
     response.headers['Access-Control-Allow-Origin'] = '*'
     response.headers['Access-Control-Allow-Headers'] = 'Cache-Control'
+    response.headers['Access-Control-Allow-Credentials'] = 'true'
+    response.headers['X-Accel-Buffering'] = 'no'  # 禁用nginx缓冲
+    response.headers['Content-Type'] = 'text/event-stream; charset=utf-8'
     return response
 
 # 新增路由：轮询方式获取进度状态（SSE备用方案）
