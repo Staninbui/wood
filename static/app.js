@@ -397,6 +397,82 @@ function showProgressModal(taskId) {
     let usePolling = false;
     let pollingInterval = null;
     
+    // 轮询函数
+    function pollProgress() {
+        fetch(`/progress-poll/${taskId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                updateProgress(data.data);
+            } else {
+                // 只有在任务真正不存在时才显示错误，避免间歇性错误
+                console.warn('轮询获取进度失败:', data.error);
+                // 不立即显示错误，给任务一些时间启动
+            }
+        })
+        .catch(error => {
+            console.error('轮询错误:', error);
+            // 同样不立即显示连接错误
+        });
+    }
+    
+    // 先尝试SSE连接
+    const eventSource = new EventSource(`/progress/${taskId}`);
+    let sseConnected = false;
+    
+    eventSource.onopen = function(event) {
+        console.log('SSE连接已建立');
+        sseConnected = true;
+    };
+    
+    eventSource.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        updateProgress(data);
+        
+        // 如果SSE正常工作，确保不启动轮询
+        if (pollingInterval) {
+            clearInterval(pollingInterval);
+            pollingInterval = null;
+            usePolling = false;
+        }
+    };
+    
+    eventSource.onerror = function(event) {
+        console.error('SSE connection error:', event);
+        eventSource.close();
+        
+        if (!usePolling) {
+            console.log('SSE失败，切换到轮询模式');
+            usePolling = true;
+            // 延迟启动轮询，给任务时间启动
+            setTimeout(() => {
+                if (!downloadTriggered && usePolling) {
+                    pollingInterval = setInterval(pollProgress, 1000);
+                }
+            }, 2000);
+        }
+    };
+    
+    // 延迟触发后端处理，确保连接已建立
+    setTimeout(() => {
+        fetch(`/generate-enhanced-csv/${taskId}`, {
+            method: 'HEAD'  // 使用HEAD请求只触发处理，不等待响应
+        }).then(response => {
+            console.log('Backend processing triggered, status:', response.status);
+        }).catch(error => {
+            console.log('Backend processing triggered with error:', error);
+        });
+    }, 200);
+    
+    // 备用轮询启动机制：如果3秒后还没有SSE连接，启动轮询
+    setTimeout(() => {
+        if (!sseConnected && !usePolling && !downloadTriggered) {
+            console.log('SSE连接超时，启动备用轮询');
+            usePolling = true;
+            pollingInterval = setInterval(pollProgress, 1000);
+        }
+    }, 3000);
+    
     // 更新进度显示的函数
     function updateProgress(data) {
         if (data.error) {
@@ -458,52 +534,6 @@ function showProgressModal(taskId) {
             }
         }
     }
-    
-    // 轮询函数
-    function pollProgress() {
-        fetch(`/progress-poll/${taskId}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                updateProgress(data.data);
-            } else {
-                updateProgress({error: data.error || '不明なエラー'});
-            }
-        })
-        .catch(error => {
-            console.error('轮询错误:', error);
-            updateProgress({error: '接続エラー'});
-        });
-    }
-    
-    // 先尝试SSE连接
-    const eventSource = new EventSource(`/progress/${taskId}`);
-    
-    eventSource.onmessage = function(event) {
-        const data = JSON.parse(event.data);
-        updateProgress(data);
-    };
-    
-    eventSource.onerror = function(event) {
-        console.error('SSE connection error:', event);
-        eventSource.close();
-        
-        if (!usePolling) {
-            console.log('SSE失败，切换到轮询模式');
-            usePolling = true;
-            // 切换到轮询模式
-            pollingInterval = setInterval(pollProgress, 1000);
-        }
-    };
-    
-    // 延迟触发后端处理，确保连接已建立
-    setTimeout(() => {
-        fetch(`/generate-enhanced-csv/${taskId}`, {
-            method: 'HEAD'  // 使用HEAD请求只触发处理，不等待响应
-        }).catch(error => {
-            console.log('Backend processing triggered');
-        });
-    }, 200);
 }
 
 function closeProgressModal() {
