@@ -80,6 +80,9 @@ EBAY_APP_ID = os.getenv('EBAY_APP_ID')
 EBAY_CERT_ID = os.getenv('EBAY_CERT_ID')
 EBAY_RU_NAME = os.getenv('EBAY_RU_NAME')
 
+# For local debugging: set EBAY_USER_ACCESS_TOKEN to skip OAuth flow
+EBAY_USER_ACCESS_TOKEN = os.getenv('EBAY_USER_ACCESS_TOKEN')
+
 # eBay OAuth 2.0 endpoints
 EBAY_OAUTH_BASE_URL = 'https://auth.ebay.com/oauth2/authorize'
 EBAY_TOKEN_URL = 'https://api.ebay.com/identity/v1/oauth2/token'
@@ -111,12 +114,31 @@ def health_check():
 
 @app.route('/')
 def index():
-    if 'ebay_token' in session:
+    # Check for local debug token first
+    if EBAY_USER_ACCESS_TOKEN:
+        # Set up session with the debug token
+        session['ebay_token'] = {
+            'access_token': EBAY_USER_ACCESS_TOKEN,
+            'token_type': 'Bearer',
+            'debug_mode': True
+        }
+        return render_template('dashboard.html')
+    elif 'ebay_token' in session:
         return render_template('dashboard.html')
     return render_template('index.html')
 
 @app.route('/login')
 def login():
+    # Check for local debug token first
+    if EBAY_USER_ACCESS_TOKEN:
+        # Set up session with the debug token and redirect to dashboard
+        session['ebay_token'] = {
+            'access_token': EBAY_USER_ACCESS_TOKEN,
+            'token_type': 'Bearer',
+            'debug_mode': True
+        }
+        return redirect(url_for('index'))
+    
     if not all([EBAY_APP_ID, EBAY_CERT_ID, EBAY_RU_NAME]):
         return "Missing eBay API credentials in environment variables.", 500
 
@@ -830,6 +852,9 @@ def generate_enhanced_csv(task_id):
         if not token_info:
             return {'error': 'ログインしていません'}, 401
         
+        # 立即创建进度跟踪，避免前端轮询时找不到任务
+        progress_manager.start_task(task_id)
+        
         # 启动异步处理
         import threading
         def async_process():
@@ -865,8 +890,8 @@ def generate_enhanced_csv(task_id):
 
 def _process_enhanced_csv_async(task_id, token_info):
     """异步CSV生成处理逻辑"""
-    # 启动进度跟踪
-    progress_manager.start_task(task_id)
+    # 进度跟踪已在HEAD请求中启动，这里不需要重复启动
+    # progress_manager.start_task(task_id)  # 已在HEAD请求中完成
     
     access_token = token_info.get('access_token')
     
@@ -919,7 +944,6 @@ def _process_enhanced_csv_async(task_id, token_info):
     enhanced_data = []
     for item_data in enhanced_data_raw:
         item_specifics = item_data.get('ItemSpecifics', {})
-        logger.info(f"ItemID {item_data.get('ItemID')} (USD通貨) の Item Specifics: {item_specifics}")
         
         # 基本データ構造
         row_data = {
@@ -991,7 +1015,7 @@ def _process_enhanced_csv_async(task_id, token_info):
         f.write(output.getvalue())
     
     logger.info(f"拡張CSVの生成完了、成功: {len(enhanced_data)}件")
-    progress_manager.complete_task(task_id, success=True, message=f'CSV生成完了 - {len(enhanced_data)}件のアイテム')
+    progress_manager.complete_task(task_id, success=True, message=f'CSV生成完了 - {len(enhanced_data)}件のUSアイテムがダウンロードしました')
 
 @app.route('/export-csv')
 def export_csv():
@@ -1075,40 +1099,58 @@ def progress_stream(task_id):
         return {'error': 'ログインしていません'}, 401
     
     def generate():
-        while True:
-            progress = progress_manager.get_progress(task_id)
-            if progress:
-                # 计算经过时间
-                elapsed_time = time.time() - progress.start_time
-                
-                data = {
-                    'task_id': progress.task_id,
-                    'status': progress.status.value,
-                    'current_step': progress.current_step,
-                    'total_steps': progress.total_steps,
-                    'current_item': progress.current_item,
-                    'total_items': progress.total_items,
-                    'progress_percentage': progress.progress_percentage,
-                    'message': progress.message,
-                    'elapsed_time': round(elapsed_time, 1)
-                }
-                
-                yield f"data: {json.dumps(data)}\n\n"
-                
-                # 如果任务完成或失败，结束推送
-                if progress.status in [TaskStatus.COMPLETED, TaskStatus.FAILED]:
-                    break
-            else:
-                # 任务不存在
-                yield f"data: {json.dumps({'error': 'Task not found'})}\n\n"
-                break
+        try:
+            # 发送初始连接确认
+            yield f"data: {json.dumps({'status': 'connected', 'task_id': task_id})}\n\n"
             
-            time.sleep(1)  # 每秒推送一次
+            # 最多等待60秒
+            max_iterations = 60
+            iteration = 0
+            
+            while iteration < max_iterations:
+                progress = progress_manager.get_progress(task_id)
+                if progress:
+                    # 计算经过时间
+                    elapsed_time = time.time() - progress.start_time
+                    
+                    data = {
+                        'task_id': progress.task_id,
+                        'status': progress.status.value,
+                        'current_step': progress.current_step,
+                        'total_steps': progress.total_steps,
+                        'current_item': progress.current_item,
+                        'total_items': progress.total_items,
+                        'progress_percentage': progress.progress_percentage,
+                        'message': progress.message,
+                        'elapsed_time': round(elapsed_time, 1)
+                    }
+                    
+                    yield f"data: {json.dumps(data)}\n\n"
+                    
+                    # 如果任务完成或失败，结束推送
+                    if progress.status in [TaskStatus.COMPLETED, TaskStatus.FAILED]:
+                        break
+                else:
+                    # 任务不存在，但给一些时间让任务启动
+                    if iteration > 5:  # 5秒后还没有任务就报错
+                        yield f"data: {json.dumps({'error': 'Task not found'})}\n\n"
+                        break
+                
+                time.sleep(1)  # 每秒推送一次
+                iteration += 1
+                
+        except GeneratorExit:
+            # 客户端断开连接
+            pass
+        except Exception as e:
+            logger.error(f"SSE推送错误: {e}")
+            yield f"data: {json.dumps({'error': f'SSE error: {str(e)}'})}\n\n"
     
     response = Response(generate(), mimetype='text/event-stream')
     response.headers['Cache-Control'] = 'no-cache'
     response.headers['Connection'] = 'keep-alive'
     response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Cache-Control'
     return response
 
 # 新增路由：轮询方式获取进度状态（SSE备用方案）

@@ -326,7 +326,7 @@ function showProgressModal(taskId) {
                     </div>
                     <div class="progress-details">
                         <div>ステップ: <span id="currentStep">0</span>/<span id="totalSteps">5</span></div>
-                        <div>項目: <span id="currentItem">0</span>/<span id="totalItems">0</span></div>
+                        <div>出品数: <span id="currentItem">0</span>/<span id="totalItems">0</span></div>
                         <div>経過時間: <span id="elapsedTime">0</span>秒</div>
                     </div>
                 </div>
@@ -456,7 +456,19 @@ function showProgressModal(taskId) {
         pollAttempts++;
         
         fetch(`/progress-poll/${taskId}`)
-        .then(response => response.json())
+        .then(response => {
+            // 检查401认证错误
+            if (response.status === 401) {
+                console.error('认证失败，停止轮询');
+                if (pollingInterval) {
+                    clearInterval(pollingInterval);
+                    pollingInterval = null;
+                }
+                updateProgress({error: '認証エラー。再度ログインしてください。'});
+                return Promise.reject('Authentication failed');
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.status === 'success') {
                 // 任务已开始，切换到进度显示
@@ -476,6 +488,19 @@ function showProgressModal(taskId) {
         })
         .catch(error => {
             console.error('轮询错误:', error);
+            if (error === 'Authentication failed') {
+                return; // 认证失败时不继续处理
+            }
+            // 检查是否是网络错误或404
+            if (error.message && error.message.includes('404')) {
+                console.log('任务不存在，停止轮询');
+                if (pollingInterval) {
+                    clearInterval(pollingInterval);
+                    pollingInterval = null;
+                }
+                updateProgress({error: 'タスクが見つかりません。ページを更新してください。'});
+                return;
+            }
             if (pollAttempts >= maxPollAttempts) {
                 updateProgress({error: '接続エラー'});
             }
@@ -520,13 +545,43 @@ function showProgressModal(taskId) {
         console.error('SSE connection error:', event);
         eventSource.close();
         
-        if (!usePolling) {
+        // 检查是否是404错误（任务不存在）
+        if (event.target.readyState === EventSource.CLOSED) {
+            console.log('SSE连接被关闭，可能是任务不存在或已完成');
+            // 先检查任务状态
+            fetch(`/progress-poll/${taskId}`)
+            .then(response => {
+                if (response.status === 404) {
+                    console.log('任务不存在，关闭进度模态框');
+                    updateProgress({error: 'タスクが見つかりません。ページを更新してください。'});
+                    return;
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data && data.status === 'success') {
+                    // 任务存在但SSE失败，切换到轮询
+                    if (!usePolling) {
+                        console.log('SSE失败，切换到轮询模式');
+                        usePolling = true;
+                        setTimeout(() => {
+                            if (!downloadTriggered && usePolling) {
+                                pollingInterval = setInterval(pollProgress, 3000);
+                            }
+                        }, 2000);
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('检查任务状态失败:', error);
+                updateProgress({error: 'タスクの状態を確認できません。ページを更新してください。'});
+            });
+        } else if (!usePolling) {
             console.log('SSE失败，切换到轮询模式');
             usePolling = true;
-            // 延迟启动轮询，给任务时间启动
             setTimeout(() => {
                 if (!downloadTriggered && usePolling) {
-                    pollingInterval = setInterval(pollProgress, 1000);
+                    pollingInterval = setInterval(pollProgress, 3000);
                 }
             }, 2000);
         }
@@ -537,9 +592,16 @@ function showProgressModal(taskId) {
         fetch(`/generate-enhanced-csv/${taskId}`, {
             method: 'HEAD'  // 使用HEAD请求只触发处理，不等待响应
         }).then(response => {
+            if (response.status === 404) {
+                console.error('任务不存在，无法触发处理');
+                updateProgress({error: 'タスクが見つかりません。ページを更新してください。'});
+                return;
+            }
             console.log('Backend processing triggered, status:', response.status);
         }).catch(error => {
             console.log('Backend processing triggered with error:', error);
+            // 如果是网络错误，可能是任务不存在
+            updateProgress({error: 'タスクの処理を開始できません。ページを更新してください。'});
         });
     }, 200);
     
@@ -548,7 +610,7 @@ function showProgressModal(taskId) {
         if (!sseConnected && !usePolling && !downloadTriggered) {
             console.log('SSE连接超时，启动备用轮询');
             usePolling = true;
-            pollingInterval = setInterval(pollProgress, 1000);
+            pollingInterval = setInterval(pollProgress, 3000);
         }
     }, 3000);
     
@@ -621,9 +683,11 @@ function showProgressModal(taskId) {
             if (closeEl) closeEl.style.display = 'block';
             isGeneratingCSV = false;
             
-            // 单次下载，避免重复
-            console.log('开始下载文件...');
-            fetch(`/generate-enhanced-csv/${taskId}`)
+            // 单次下载，避免重复 - 添加3秒延迟
+            console.log('等待3秒后开始下载文件...');
+            setTimeout(() => {
+                console.log('开始下载文件...');
+                fetch(`/generate-enhanced-csv/${taskId}`)
             .then(response => {
                 console.log('下载响应状态:', response.status);
                 if (response.ok) {
@@ -654,6 +718,7 @@ function showProgressModal(taskId) {
                     messageEl.textContent = 'ダウンロードエラー: ' + error.message;
                 }
             });
+            }, 3000); // 3秒延迟
         } else if (data.status === 'failed') {
             const closeEl = document.getElementById('closeProgress');
             if (closeEl) closeEl.style.display = 'block';
