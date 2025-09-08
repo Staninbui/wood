@@ -825,11 +825,16 @@ def generate_enhanced_csv(task_id):
         if existing_progress and existing_progress.status not in [TaskStatus.COMPLETED, TaskStatus.FAILED]:
             return '', 202  # 已在处理中
         
+        # 获取session数据传递给后台线程
+        token_info = session.get('ebay_token')
+        if not token_info:
+            return {'error': 'ログインしていません'}, 401
+        
         # 启动异步处理
         import threading
         def async_process():
             try:
-                _process_enhanced_csv(task_id)
+                _process_enhanced_csv_async(task_id, token_info)
             except Exception as e:
                 logger.error(f"异步处理错误: {e}")
                 progress_manager.complete_task(task_id, success=False, message=f'エラー: {str(e)}')
@@ -840,24 +845,34 @@ def generate_enhanced_csv(task_id):
         
         return '', 202  # 处理已启动
     
-    # GET请求：返回已生成的文件或开始处理
-    try:
-        return _process_enhanced_csv(task_id)
-    except Exception as e:
-        progress_manager.complete_task(task_id, success=False, message=f'エラー: {str(e)}')
-        return {'error': f'拡張CSV生成時にエラーが発生しました: {str(e)}'}, 500
+    # GET请求：检查是否已完成并返回文件
+    progress = progress_manager.get_progress(task_id)
+    if progress and progress.status == TaskStatus.COMPLETED:
+        # 文件已生成，返回下载
+        import tempfile
+        import os
+        temp_file_path = os.path.join(tempfile.gettempdir(), f'enhanced_csv_{task_id}.csv')
+        if os.path.exists(temp_file_path):
+            filename = f'ebay_revise_template_{task_id}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+            return send_file(
+                temp_file_path,
+                mimetype='text/csv',
+                as_attachment=True,
+                download_name=filename
+            )
+    
+    return {'error': 'ファイルが見つかりません'}, 404
 
-def _process_enhanced_csv(task_id):
-    """处理增强CSV生成的核心逻辑"""
+def _process_enhanced_csv_async(task_id, token_info):
+    """异步CSV生成处理逻辑"""
     # 启动进度跟踪
     progress_manager.start_task(task_id)
     
-    token_info = session['ebay_token']
     access_token = token_info.get('access_token')
     
     if not access_token:
         progress_manager.complete_task(task_id, success=False, message='アクセストークンが無効です')
-        return {'error': 'アクセストークンが無効です'}, 401
+        return
     
     print(f"=== 拡張CSVレポートの生成 ===")
     print(f"Task ID: {task_id}")
@@ -877,7 +892,7 @@ def _process_enhanced_csv(task_id):
     
     if response.status_code != 200:
         progress_manager.complete_task(task_id, success=False, message=f'レポートのダウンロードに失敗: HTTP {response.status_code}')
-        return {'error': f'レポートのダウンロードに失敗: HTTP {response.status_code}'}, response.status_code
+        return
     
     # 2. ZIPファイルからItemIDリストを抽出（最適化版）
     progress_manager.update_progress(task_id, TaskStatus.EXTRACTING, current_step=2, message='ItemIDを抽出中...')
@@ -886,7 +901,7 @@ def _process_enhanced_csv(task_id):
     
     if not item_ids:
         progress_manager.complete_task(task_id, success=False, message='ZIPファイルからItemIDを抽出できませんでした')
-        return {'error': 'ZIPファイルからItemIDを抽出できませんでした'}, 400
+        return
     
     logger.info(f"{len(item_ids)}個のItemIDが見つかりました")
     progress_manager.update_progress(task_id, TaskStatus.PROCESSING, current_step=3, total_items=len(item_ids), message=f'{len(item_ids)}個のアイテム詳細を取得中...')
@@ -896,7 +911,7 @@ def _process_enhanced_csv(task_id):
     
     if not enhanced_data_raw:
         progress_manager.complete_task(task_id, success=False, message='商品の詳細情報を取得できませんでした')
-        return {'error': '商品の詳細情報を取得できませんでした'}, 400
+        return
     
     # 4. eBayテンプレート形式用にデータを変換
     progress_manager.update_progress(task_id, TaskStatus.GENERATING, current_step=4, message='CSVファイルを生成中...')
@@ -924,63 +939,59 @@ def _process_enhanced_csv(task_id):
             row_data[column_name] = spec_value
         
         enhanced_data.append(row_data)
+    
+    # 4. eBayテンプレート形式のCSVを作成
+    ebay_template_data = []
+    
+    for item in enhanced_data:
+        # 基本的なeBayテンプレート行データ
+        row = {
+            'Action': 'Revise',
+            'Category name': item.get('CategoryName', ''),
+            'Item number': item.get('ItemID', ''),
+            'Title': item.get('Title', ''),
+            'Listing site': 'US',
+            'Currency': item.get('Currency', 'USD'),
+            'Start price': item.get('CurrentPrice', ''),
+            'Buy It Now price': '',
+            'Available quantity': item.get('Quantity', ''),
+            'Relationship': '',
+            'Relationship details': '',
+            'Custom label (SKU)': item.get('SKU', '')
+        }
         
-        # 4. eBayテンプレート形式のCSVを作成
-        ebay_template_data = []
+        # Item SpecificsをC:形式で追加
+        for key, value in item.items():
+            if key.startswith('ItemSpecific_'):
+                spec_name = key.replace('ItemSpecific_', '')
+                column_name = f"C:{spec_name}"
+                row[column_name] = value
         
-        for item in enhanced_data:
-            # 基本的なeBayテンプレート行データ
-            row = {
-                'Action': 'Revise',
-                'Category name': item.get('CategoryName', ''),
-                'Item number': item.get('ItemID', ''),
-                'Title': item.get('Title', ''),
-                'Listing site': 'US',
-                'Currency': item.get('Currency', 'USD'),
-                'Start price': item.get('CurrentPrice', ''),
-                'Buy It Now price': '',
-                'Available quantity': item.get('Quantity', ''),
-                'Relationship': '',
-                'Relationship details': '',
-                'Custom label (SKU)': item.get('SKU', '')
-            }
-            
-            # Item SpecificsをC:形式で追加
-            # enhanced_dataからItemSpecific_プレフィックスのフィールドを抽出
-            for key, value in item.items():
-                if key.startswith('ItemSpecific_'):
-                    # ItemSpecific_プレフィックスを削除し、C:プレフィックスを追加
-                    spec_name = key.replace('ItemSpecific_', '')
-                    column_name = f"C:{spec_name}"
-                    row[column_name] = value
-            
-            ebay_template_data.append(row)
-        
-        # CSVコンテンツを作成
-        output = BytesIO()
-        
-        # INFOヘッダーを書き込み - 1行3列として
-        info_header = "#INFO,Version=1.0.0,Template= eBay-active-revise-price-quantity-download_US\n"
-        output.write(info_header.encode('utf-8-sig'))
-        
-        # DataFrameを作成しCSVデータを書き込み
-        df = pd.DataFrame(ebay_template_data)
-        csv_content = df.to_csv(index=False, encoding='utf-8')
-        output.write(csv_content.encode('utf-8'))
-        
-        output.seek(0)
-        
-        filename = f"ebay_revise_template_{task_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-        
-        logger.info(f"拡張CSVの生成完了、成功: {len(enhanced_data)}件")
-        progress_manager.complete_task(task_id, success=True, message=f'CSV生成完了 - {len(enhanced_data)}件のアイテム')
-        
-        return send_file(
-            output,
-            mimetype='text/csv',
-            as_attachment=True,
-            download_name=filename
-        )
+        ebay_template_data.append(row)
+    
+    # CSVファイルを一時ファイルとして保存
+    import tempfile
+    import os
+    
+    # CSVコンテンツを作成
+    output = BytesIO()
+    
+    # INFOヘッダーを書き込み
+    info_header = "#INFO,Version=1.0.0,Template= eBay-active-revise-price-quantity-download_US\n"
+    output.write(info_header.encode('utf-8-sig'))
+    
+    # DataFrameを作成しCSVデータを書き込み
+    df = pd.DataFrame(ebay_template_data)
+    csv_content = df.to_csv(index=False, encoding='utf-8')
+    output.write(csv_content.encode('utf-8'))
+    
+    # 一時ファイルに保存
+    temp_file_path = os.path.join(tempfile.gettempdir(), f'enhanced_csv_{task_id}.csv')
+    with open(temp_file_path, 'wb') as f:
+        f.write(output.getvalue())
+    
+    logger.info(f"拡張CSVの生成完了、成功: {len(enhanced_data)}件")
+    progress_manager.complete_task(task_id, success=True, message=f'CSV生成完了 - {len(enhanced_data)}件のアイテム')
 
 @app.route('/export-csv')
 def export_csv():
