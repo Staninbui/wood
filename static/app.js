@@ -393,38 +393,39 @@ function showProgressModal(taskId) {
     document.head.appendChild(style);
     document.body.appendChild(modal);
     
-    // 先启动SSE连接监听进度
-    const eventSource = new EventSource(`/progress/${taskId}`);
     let downloadTriggered = false;
+    let usePolling = false;
+    let pollingInterval = null;
     
-    eventSource.onmessage = function(event) {
-        const data = JSON.parse(event.data);
-        
+    // 更新进度显示的函数
+    function updateProgress(data) {
         if (data.error) {
             document.getElementById('progressMessage').textContent = 'エラー: ' + data.error;
             document.getElementById('closeProgress').style.display = 'block';
-            eventSource.close();
             isGeneratingCSV = false;
             return;
         }
         
         // 更新进度显示
-        const percentage = Math.round(data.progress_percentage);
+        const percentage = Math.round(data.progress_percentage || 0);
         document.getElementById('progressFill').style.width = percentage + '%';
         document.getElementById('progressPercentage').textContent = percentage + '%';
-        document.getElementById('progressMessage').textContent = data.message;
-        document.getElementById('currentStep').textContent = data.current_step;
-        document.getElementById('totalSteps').textContent = data.total_steps;
-        document.getElementById('currentItem').textContent = data.current_item;
-        document.getElementById('totalItems').textContent = data.total_items;
-        document.getElementById('elapsedTime').textContent = data.elapsed_time;
+        document.getElementById('progressMessage').textContent = data.message || '処理中...';
+        document.getElementById('currentStep').textContent = data.current_step || 0;
+        document.getElementById('totalSteps').textContent = data.total_steps || 5;
+        document.getElementById('currentItem').textContent = data.current_item || 0;
+        document.getElementById('totalItems').textContent = data.total_items || 0;
+        document.getElementById('elapsedTime').textContent = data.elapsed_time || 0;
         
         // 如果完成，触发下载
         if (data.status === 'completed' && !downloadTriggered) {
             downloadTriggered = true;
             document.getElementById('closeProgress').style.display = 'block';
-            eventSource.close();
             isGeneratingCSV = false;
+            
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+            }
             
             // 下载文件
             setTimeout(() => {
@@ -451,20 +452,51 @@ function showProgressModal(taskId) {
             }, 500);
         } else if (data.status === 'failed') {
             document.getElementById('closeProgress').style.display = 'block';
-            eventSource.close();
             isGeneratingCSV = false;
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+            }
         }
+    }
+    
+    // 轮询函数
+    function pollProgress() {
+        fetch(`/progress-poll/${taskId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                updateProgress(data.data);
+            } else {
+                updateProgress({error: data.error || '不明なエラー'});
+            }
+        })
+        .catch(error => {
+            console.error('轮询错误:', error);
+            updateProgress({error: '接続エラー'});
+        });
+    }
+    
+    // 先尝试SSE连接
+    const eventSource = new EventSource(`/progress/${taskId}`);
+    
+    eventSource.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        updateProgress(data);
     };
     
     eventSource.onerror = function(event) {
         console.error('SSE connection error:', event);
-        document.getElementById('progressMessage').textContent = '接続エラー';
-        document.getElementById('closeProgress').style.display = 'block';
         eventSource.close();
-        isGeneratingCSV = false;
+        
+        if (!usePolling) {
+            console.log('SSE失败，切换到轮询模式');
+            usePolling = true;
+            // 切换到轮询模式
+            pollingInterval = setInterval(pollProgress, 1000);
+        }
     };
     
-    // 延迟触发后端处理，确保SSE连接已建立
+    // 延迟触发后端处理，确保连接已建立
     setTimeout(() => {
         fetch(`/generate-enhanced-csv/${taskId}`, {
             method: 'HEAD'  // 使用HEAD请求只触发处理，不等待响应

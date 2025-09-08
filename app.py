@@ -1105,7 +1105,39 @@ def progress_stream(task_id):
             
             time.sleep(1)  # 每秒推送一次
     
-    return Response(generate(), mimetype='text/plain')
+    response = Response(generate(), mimetype='text/event-stream')
+    response.headers['Cache-Control'] = 'no-cache'
+    response.headers['Connection'] = 'keep-alive'
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    return response
+
+# 新增路由：轮询方式获取进度状态（SSE备用方案）
+@app.route('/progress-poll/<task_id>')
+def progress_poll(task_id):
+    """轮询方式获取任务进度状态"""
+    if 'ebay_token' not in session:
+        return {'error': 'ログインしていません'}, 401
+    
+    progress = progress_manager.get_progress(task_id)
+    if progress:
+        elapsed_time = time.time() - progress.start_time
+        
+        return {
+            'status': 'success',
+            'data': {
+                'task_id': progress.task_id,
+                'status': progress.status.value,
+                'current_step': progress.current_step,
+                'total_steps': progress.total_steps,
+                'current_item': progress.current_item,
+                'total_items': progress.total_items,
+                'progress_percentage': progress.progress_percentage,
+                'message': progress.message,
+                'elapsed_time': round(elapsed_time, 1)
+            }
+        }, 200
+    else:
+        return {'error': 'Task not found'}, 404
 
 if __name__ == '__main__':
     # Ensure the callback URL is correctly set for local testing
