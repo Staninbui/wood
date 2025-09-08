@@ -813,87 +813,117 @@ def extract_item_ids_from_zip(zip_content):
         return []
 
 # 新增路由：生成增强的CSV报告（包含Item Specifics）
-@app.route('/generate-enhanced-csv/<task_id>', methods=['GET'])
+@app.route('/generate-enhanced-csv/<task_id>', methods=['GET', 'HEAD'])
 def generate_enhanced_csv(task_id):
     if 'ebay_token' not in session:
         return {'error': 'ログインしていません'}, 401
     
+    # HEAD请求：启动处理但不等待完成
+    if request.method == 'HEAD':
+        # 检查是否已经在处理中
+        existing_progress = progress_manager.get_progress(task_id)
+        if existing_progress and existing_progress.status not in [TaskStatus.COMPLETED, TaskStatus.FAILED]:
+            return '', 202  # 已在处理中
+        
+        # 启动异步处理
+        import threading
+        def async_process():
+            try:
+                _process_enhanced_csv(task_id)
+            except Exception as e:
+                logger.error(f"异步处理错误: {e}")
+                progress_manager.complete_task(task_id, success=False, message=f'エラー: {str(e)}')
+        
+        thread = threading.Thread(target=async_process)
+        thread.daemon = True
+        thread.start()
+        
+        return '', 202  # 处理已启动
+    
+    # GET请求：返回已生成的文件或开始处理
     try:
-        # 启动进度跟踪
-        progress_manager.start_task(task_id)
+        return _process_enhanced_csv(task_id)
+    except Exception as e:
+        progress_manager.complete_task(task_id, success=False, message=f'エラー: {str(e)}')
+        return {'error': f'拡張CSV生成時にエラーが発生しました: {str(e)}'}, 500
+
+def _process_enhanced_csv(task_id):
+    """处理增强CSV生成的核心逻辑"""
+    # 启动进度跟踪
+    progress_manager.start_task(task_id)
+    
+    token_info = session['ebay_token']
+    access_token = token_info.get('access_token')
+    
+    if not access_token:
+        progress_manager.complete_task(task_id, success=False, message='アクセストークンが無効です')
+        return {'error': 'アクセストークンが無効です'}, 401
+    
+    print(f"=== 拡張CSVレポートの生成 ===")
+    print(f"Task ID: {task_id}")
+    
+    # 1. ZIPファイルをダウンロード
+    progress_manager.update_progress(task_id, TaskStatus.DOWNLOADING, current_step=1, message='ZIPファイルをダウンロード中...')
+    
+    headers = {
+        'Authorization': f'Bearer {access_token}',
+        'Accept': 'application/octet-stream',
+        'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US'
+    }
+    
+    download_url = f'{EBAY_FEED_API_BASE_URL}/task/{task_id}/download_result_file'
+    ssl_session = create_ssl_session()
+    response = ssl_session.get(download_url, headers=headers)
+    
+    if response.status_code != 200:
+        progress_manager.complete_task(task_id, success=False, message=f'レポートのダウンロードに失敗: HTTP {response.status_code}')
+        return {'error': f'レポートのダウンロードに失敗: HTTP {response.status_code}'}, response.status_code
+    
+    # 2. ZIPファイルからItemIDリストを抽出（最適化版）
+    progress_manager.update_progress(task_id, TaskStatus.EXTRACTING, current_step=2, message='ItemIDを抽出中...')
+    
+    item_ids = xml_processor.extract_item_ids_from_zip(response.content)
+    
+    if not item_ids:
+        progress_manager.complete_task(task_id, success=False, message='ZIPファイルからItemIDを抽出できませんでした')
+        return {'error': 'ZIPファイルからItemIDを抽出できませんでした'}, 400
+    
+    logger.info(f"{len(item_ids)}個のItemIDが見つかりました")
+    progress_manager.update_progress(task_id, TaskStatus.PROCESSING, current_step=3, total_items=len(item_ids), message=f'{len(item_ids)}個のアイテム詳細を取得中...')
+    
+    # 3. 並列処理でアイテム詳細を取得（最適化版）
+    enhanced_data_raw = xml_processor.get_item_details_batch(item_ids, access_token, task_id)
+    
+    if not enhanced_data_raw:
+        progress_manager.complete_task(task_id, success=False, message='商品の詳細情報を取得できませんでした')
+        return {'error': '商品の詳細情報を取得できませんでした'}, 400
+    
+    # 4. eBayテンプレート形式用にデータを変換
+    progress_manager.update_progress(task_id, TaskStatus.GENERATING, current_step=4, message='CSVファイルを生成中...')
+    
+    enhanced_data = []
+    for item_data in enhanced_data_raw:
+        item_specifics = item_data.get('ItemSpecifics', {})
+        logger.info(f"ItemID {item_data.get('ItemID')} (USD通貨) の Item Specifics: {item_specifics}")
         
-        token_info = session['ebay_token']
-        access_token = token_info.get('access_token')
-        
-        if not access_token:
-            progress_manager.complete_task(task_id, success=False, message='アクセストークンが無効です')
-            return {'error': 'アクセストークンが無効です'}, 401
-        
-        print(f"=== 拡張CSVレポートの生成 ===")
-        print(f"Task ID: {task_id}")
-        
-        # 1. ZIPファイルをダウンロード
-        progress_manager.update_progress(task_id, TaskStatus.DOWNLOADING, current_step=1, message='ZIPファイルをダウンロード中...')
-        
-        headers = {
-            'Authorization': f'Bearer {access_token}',
-            'Accept': 'application/octet-stream',
-            'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US'
+        # 基本データ構造
+        row_data = {
+            'ItemID': item_data.get('ItemID', ''),
+            'Title': item_data.get('Title', ''),
+            'SKU': item_data.get('SKU', ''),
+            'CurrentPrice': item_data.get('CurrentPrice', ''),
+            'Currency': item_data.get('Currency', ''),
+            'Quantity': item_data.get('Quantity', ''),
+            'CategoryID': item_data.get('CategoryID', ''),
+            'CategoryName': item_data.get('CategoryName', '')
         }
         
-        download_url = f'{EBAY_FEED_API_BASE_URL}/task/{task_id}/download_result_file'
-        ssl_session = create_ssl_session()
-        response = ssl_session.get(download_url, headers=headers)
+        # Item Specificsを個別の列として追加
+        for spec_name, spec_value in item_specifics.items():
+            column_name = f"ItemSpecific_{spec_name}"
+            row_data[column_name] = spec_value
         
-        if response.status_code != 200:
-            progress_manager.complete_task(task_id, success=False, message=f'レポートのダウンロードに失敗: HTTP {response.status_code}')
-            return {'error': f'レポートのダウンロードに失敗: HTTP {response.status_code}'}, response.status_code
-        
-        # 2. ZIPファイルからItemIDリストを抽出（最適化版）
-        progress_manager.update_progress(task_id, TaskStatus.EXTRACTING, current_step=2, message='ItemIDを抽出中...')
-        
-        item_ids = xml_processor.extract_item_ids_from_zip(response.content)
-        
-        if not item_ids:
-            progress_manager.complete_task(task_id, success=False, message='ZIPファイルからItemIDを抽出できませんでした')
-            return {'error': 'ZIPファイルからItemIDを抽出できませんでした'}, 400
-        
-        logger.info(f"{len(item_ids)}個のItemIDが見つかりました")
-        progress_manager.update_progress(task_id, TaskStatus.PROCESSING, current_step=3, total_items=len(item_ids), message=f'{len(item_ids)}個のアイテム詳細を取得中...')
-        
-        # 3. 並列処理でアイテム詳細を取得（最適化版）
-        enhanced_data_raw = xml_processor.get_item_details_batch(item_ids, access_token, task_id)
-        
-        if not enhanced_data_raw:
-            progress_manager.complete_task(task_id, success=False, message='商品の詳細情報を取得できませんでした')
-            return {'error': '商品の詳細情報を取得できませんでした'}, 400
-        
-        # 4. eBayテンプレート形式用にデータを変換
-        progress_manager.update_progress(task_id, TaskStatus.GENERATING, current_step=4, message='CSVファイルを生成中...')
-        
-        enhanced_data = []
-        for item_data in enhanced_data_raw:
-            item_specifics = item_data.get('ItemSpecifics', {})
-            logger.info(f"ItemID {item_data.get('ItemID')} (USD通貨) の Item Specifics: {item_specifics}")
-            
-            # 基本データ構造
-            row_data = {
-                'ItemID': item_data.get('ItemID', ''),
-                'Title': item_data.get('Title', ''),
-                'SKU': item_data.get('SKU', ''),
-                'CurrentPrice': item_data.get('CurrentPrice', ''),
-                'Currency': item_data.get('Currency', ''),
-                'Quantity': item_data.get('Quantity', ''),
-                'CategoryID': item_data.get('CategoryID', ''),
-                'CategoryName': item_data.get('CategoryName', '')
-            }
-            
-            # Item Specificsを個別の列として追加
-            for spec_name, spec_value in item_specifics.items():
-                column_name = f"ItemSpecific_{spec_name}"
-                row_data[column_name] = spec_value
-            
-            enhanced_data.append(row_data)
+        enhanced_data.append(row_data)
         
         # 4. eBayテンプレート形式のCSVを作成
         ebay_template_data = []
@@ -951,11 +981,6 @@ def generate_enhanced_csv(task_id):
             as_attachment=True,
             download_name=filename
         )
-        
-    except Exception as e:
-        print(f"拡張CSV生成時にエラーが発生しました: {str(e)}")
-        progress_manager.complete_task(task_id, success=False, message=f'エラー: {str(e)}')
-        return {'error': f'拡張CSV生成時にエラーが発生しました: {str(e)}'}, 500
 
 @app.route('/export-csv')
 def export_csv():

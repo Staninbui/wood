@@ -393,78 +393,85 @@ function showProgressModal(taskId) {
     document.head.appendChild(style);
     document.body.appendChild(modal);
     
-    // 先触发后端开始处理，然后启动SSE连接
-    fetch(`/generate-enhanced-csv/${taskId}`, {
-        method: 'GET'
-    })
-    .then(response => {
-        if (response.ok) {
-            return response.blob();
-        }
-        throw new Error('CSV生成失敗');
-    })
-    .then(blob => {
-        // 处理完成，直接下载文件
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `ebay_revise_template_${taskId}_${new Date().toISOString().slice(0,19).replace(/[-:]/g, '').replace('T', '_')}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-        
-        // 更新进度显示为完成
-        document.getElementById('progressFill').style.width = '100%';
-        document.getElementById('progressPercentage').textContent = '100%';
-        document.getElementById('progressMessage').textContent = 'CSV生成完了！';
-        document.getElementById('currentStep').textContent = '5';
-        document.getElementById('totalSteps').textContent = '5';
-        document.getElementById('closeProgress').style.display = 'block';
-        isGeneratingCSV = false;
-    })
-    .catch(error => {
-        console.error('CSV生成エラー:', error);
-        document.getElementById('progressMessage').textContent = 'エラー: ' + error.message;
-        document.getElementById('closeProgress').style.display = 'block';
-        isGeneratingCSV = false;
-    });
+    // 先启动SSE连接监听进度
+    const eventSource = new EventSource(`/progress/${taskId}`);
+    let downloadTriggered = false;
     
-    // 启动SSE连接监听进度（如果支持的话）
-    setTimeout(() => {
-        const eventSource = new EventSource(`/progress/${taskId}`);
+    eventSource.onmessage = function(event) {
+        const data = JSON.parse(event.data);
         
-        eventSource.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-            
-            if (data.error) {
-                // 忽略错误，因为主要的下载逻辑在上面
-                eventSource.close();
-                return;
-            }
-            
-            // 更新进度显示
-            const percentage = Math.round(data.progress_percentage);
-            document.getElementById('progressFill').style.width = percentage + '%';
-            document.getElementById('progressPercentage').textContent = percentage + '%';
-            document.getElementById('progressMessage').textContent = data.message;
-            document.getElementById('currentStep').textContent = data.current_step;
-            document.getElementById('totalSteps').textContent = data.total_steps;
-            document.getElementById('currentItem').textContent = data.current_item;
-            document.getElementById('totalItems').textContent = data.total_items;
-            document.getElementById('elapsedTime').textContent = data.elapsed_time;
-            
-            // 如果完成或失败，关闭连接
-            if (data.status === 'completed' || data.status === 'failed') {
-                eventSource.close();
-            }
-        };
-        
-        eventSource.onerror = function(event) {
-            // 静默处理错误，因为主要逻辑不依赖SSE
+        if (data.error) {
+            document.getElementById('progressMessage').textContent = 'エラー: ' + data.error;
+            document.getElementById('closeProgress').style.display = 'block';
             eventSource.close();
-        };
-    }, 100);
+            isGeneratingCSV = false;
+            return;
+        }
+        
+        // 更新进度显示
+        const percentage = Math.round(data.progress_percentage);
+        document.getElementById('progressFill').style.width = percentage + '%';
+        document.getElementById('progressPercentage').textContent = percentage + '%';
+        document.getElementById('progressMessage').textContent = data.message;
+        document.getElementById('currentStep').textContent = data.current_step;
+        document.getElementById('totalSteps').textContent = data.total_steps;
+        document.getElementById('currentItem').textContent = data.current_item;
+        document.getElementById('totalItems').textContent = data.total_items;
+        document.getElementById('elapsedTime').textContent = data.elapsed_time;
+        
+        // 如果完成，触发下载
+        if (data.status === 'completed' && !downloadTriggered) {
+            downloadTriggered = true;
+            document.getElementById('closeProgress').style.display = 'block';
+            eventSource.close();
+            isGeneratingCSV = false;
+            
+            // 下载文件
+            setTimeout(() => {
+                fetch(`/generate-enhanced-csv/${taskId}`)
+                .then(response => {
+                    if (response.ok) {
+                        return response.blob();
+                    }
+                    throw new Error('ダウンロード失敗');
+                })
+                .then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `ebay_revise_template_${taskId}_${new Date().toISOString().slice(0,19).replace(/[-:]/g, '').replace('T', '_')}.csv`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    window.URL.revokeObjectURL(url);
+                })
+                .catch(error => {
+                    console.error('ダウンロードエラー:', error);
+                });
+            }, 500);
+        } else if (data.status === 'failed') {
+            document.getElementById('closeProgress').style.display = 'block';
+            eventSource.close();
+            isGeneratingCSV = false;
+        }
+    };
+    
+    eventSource.onerror = function(event) {
+        console.error('SSE connection error:', event);
+        document.getElementById('progressMessage').textContent = '接続エラー';
+        document.getElementById('closeProgress').style.display = 'block';
+        eventSource.close();
+        isGeneratingCSV = false;
+    };
+    
+    // 延迟触发后端处理，确保SSE连接已建立
+    setTimeout(() => {
+        fetch(`/generate-enhanced-csv/${taskId}`, {
+            method: 'HEAD'  // 使用HEAD请求只触发处理，不等待响应
+        }).catch(error => {
+            console.log('Backend processing triggered');
+        });
+    }, 200);
 }
 
 function closeProgressModal() {
