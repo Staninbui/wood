@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ウッド（Wood）</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #4a90e2 0%, #2c5aa0 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            color: white;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 300;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .main-content {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .section {
+            padding: 30px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .section:last-child {
+            border-bottom: none;
+        }
+        
+        .section-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        
+        .action-group {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: #2196f3;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #1976d2;
+            transform: translateY(-2px);
+        }
+        
+        .btn-success {
+            background: #1565c0;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #0d47a1;
+            transform: translateY(-2px);
+        }
+        
+        .btn-secondary {
+            background: #90a4ae;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #607d8b;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .form-input {
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #2196f3;
+        }
+        
+        .form-input[type="text"] {
+            min-width: 300px;
+        }
+        
+        .form-input[type="number"] {
+            width: 80px;
+        }
+        
+        .card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 15px;
+        }
+        
+        .status-message {
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+        
+        .status-success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .status-error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
+        .status-info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        
+        .logout-section {
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+        
+        .logout-link {
+            color: #6c757d;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        
+        .logout-link:hover {
+            color: #495057;
+        }
+        
+        .reports-grid {
+            display: grid;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .report-item {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            transition: box-shadow 0.3s ease;
+        }
+        
+        .report-item:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .report-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .report-status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .status-completed {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-failed {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .section {
+                padding: 20px;
+            }
+            
+            .action-group {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .form-input[type="text"] {
+                min-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>ウッド（Wood）</h1>
+            <p>eBay在庫レポートの生成とFile Exchange形式のCSVファイルの生成</p>
+        </div>
+        
+        <div class="main-content">
+            <!-- 生成新报告 -->
+            <div class="section">
+                <h2 class="section-title">📊 在庫レポート生成</h2>
+                <div class="action-group">
+                    <button id="generate-report-btn" class="btn btn-primary">新しいレポートを生成</button>
+                    <button id="check-status-btn" class="btn btn-secondary" style="display: none;">ステータス確認</button>
+                </div>
+                <div id="report-status"></div>
+            </div>
+            
+            <!-- 查询特定任务 -->
+            <div class="section">
+                <h2 class="section-title">🔍 タスク検索</h2>
+                <div class="input-group">
+                    <input type="text" id="task-id-input" class="form-input" placeholder="タスクIDを入力して検索">
+                    <button id="query-task-btn" class="btn btn-primary">ステータス検索</button>
+                </div>
+                <div id="task-query-result"></div>
+            </div>
+            
+            <!-- 最近的报告 -->
+            <div class="section">
+                <h2 class="section-title">📋 最近のレポート</h2>
+                <div class="input-group">
+                    <label for="days-input">検索日数:</label>
+                    <input type="number" id="days-input" class="form-input" value="7" min="1" max="30">
+                    <button id="get-recent-reports-btn" class="btn btn-primary">レポート取得</button>
+                </div>
+                <div id="recent-reports-list"></div>
+            </div>
+        </div>
+        
+        <div class="logout-section">
+            <a href="{{ url_for('auth.logout') }}" class="logout-link">ログアウト</a>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

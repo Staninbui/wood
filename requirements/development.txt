@@ -1,0 +1,11 @@
+# 开发环境依赖
+-r base.txt
+
+# 开发工具
+flask-debugtoolbar>=0.13.1
+pytest>=7.4.0
+pytest-flask>=1.2.0
+pytest-cov>=4.1.0
+black>=23.7.0
+flake8>=6.0.0
+mypy>=1.5.0

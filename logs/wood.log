@@ -1,0 +1,112 @@
+2025-09-22 15:35:57,474 INFO app Wood application startup
+2025-09-22 15:36:01,893 ERROR app Exception on / [GET]
+Traceback (most recent call last):
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/stayang/Desktop/projects/wood/app/api/main.py", line 24, in index
+    return render_template('index.html')
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/flask/templating.py", line 150, in render_template
+    return _render(app, template, context)
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/flask/templating.py", line 131, in _render
+    rv = template.render(context)
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/jinja2/environment.py", line 1295, in render
+    self.environment.handle_exception()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/jinja2/environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "/Users/stayang/Desktop/projects/wood/app/templates/index.html", line 196, in top-level template code
+    <a href="{{ url_for('login') }}" class="login-btn">
+    ^^^^^^^^^
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/flask/app.py", line 1121, in url_for
+    return self.handle_url_build_error(error, endpoint, values)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/flask/app.py", line 1110, in url_for
+    rv = url_adapter.build(  # type: ignore[union-attr]
+        endpoint,
+    ...<3 lines>...
+        force_external=_external,
+    )
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/werkzeug/routing/map.py", line 924, in build
+    raise BuildError(endpoint, values, method, self)
+werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'login'. Did you mean 'auth.login' instead?
+2025-09-22 15:36:01,896 ERROR app.utils.error_handlers Server Error: 500 Internal Server Error: The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.
+2025-09-22 15:36:01,933 ERROR app Exception on /favicon.ico [GET]
+Traceback (most recent call last):
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/flask/app.py", line 891, in dispatch_request
+    self.raise_routing_exception(req)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/flask/app.py", line 500, in raise_routing_exception
+    raise request.routing_exception  # type: ignore[misc]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/flask/ctx.py", line 362, in match_request
+    result = self.url_adapter.match(return_rule=True)  # type: ignore
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/werkzeug/routing/map.py", line 629, in match
+    raise NotFound() from None
+werkzeug.exceptions.NotFound: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/flask/app.py", line 802, in handle_user_exception
+    return self.handle_http_exception(e)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/flask/app.py", line 777, in handle_http_exception
+    return self.ensure_sync(handler)(e)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^
+  File "/Users/stayang/Desktop/projects/wood/app/utils/error_handlers.py", line 36, in not_found
+    return render_template('errors/404.html'), 404
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/flask/templating.py", line 149, in render_template
+    template = app.jinja_env.get_or_select_template(template_name_or_list)
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/jinja2/environment.py", line 1087, in get_or_select_template
+    return self.get_template(template_name_or_list, parent, globals)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/jinja2/environment.py", line 1016, in get_template
+    return self._load_template(name, globals)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/jinja2/environment.py", line 975, in _load_template
+    template = self.loader.load(self, name, self.make_globals(globals))
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/jinja2/loaders.py", line 126, in load
+    source, filename, uptodate = self.get_source(environment, name)
+                                 ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/flask/templating.py", line 65, in get_source
+    return self._get_source_fast(environment, template)
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/stayang/Desktop/projects/wood/.venv/lib/python3.13/site-packages/flask/templating.py", line 99, in _get_source_fast
+    raise TemplateNotFound(template)
+jinja2.exceptions.TemplateNotFound: errors/404.html
+2025-09-22 15:36:01,934 ERROR app.utils.error_handlers Server Error: 500 Internal Server Error: The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.
+2025-09-24 09:58:03,553 INFO app Wood application startup
+2025-09-24 10:05:27,661 INFO app Wood application startup
+2025-09-24 10:05:48,374 INFO app.services.ebay_service Inventory task creation response: 202
+2025-09-24 10:06:30,630 INFO app.api.tasks 开始生成增强CSV报告，任务ID: task-20-23551113297923
+2025-09-24 10:06:30,644 ERROR app.api.tasks 增强CSV生成过程中出错: Working outside of application context.
+
+This typically means that you attempted to use functionality that needed
+the current application. To solve this, set up an application context
+with app.app_context(). See the documentation for more information.
+2025-09-24 10:37:15,354 INFO app Wood application startup
+2025-09-24 10:37:30,175 INFO app.api.tasks 开始生成增强CSV报告，任务ID: task-20-23551113297923
+2025-09-24 10:37:30,706 INFO app.services.xml_service 从ZIP文件中提取到 139 个唯一ItemID
+2025-09-24 10:37:30,707 INFO app.api.tasks 提取到 139 个ItemID
+2025-09-24 10:37:30,707 INFO app.services.xml_service 开始批量处理 139 个ItemID，并发数: 4
+2025-09-24 10:37:57,948 INFO app.services.xml_service 批量处理完成 - 成功: 66, 失败: 0, 耗时: 27.24秒
+2025-09-24 10:37:57,962 ERROR app.services.csv_service 生成增强CSV时出错: [Errno 2] No such file or directory: '/Users/stayang/Desktop/projects/wood/temp/enhanced_csv_task-20-23551113297923.csv'
+2025-09-24 10:42:50,636 INFO app Wood production startup
+2025-09-24 10:42:50,777 INFO app Wood application startup
+2025-09-24 10:42:50,777 INFO app Wood application startup
+2025-09-24 10:42:50,777 INFO app Wood application startup
+2025-09-24 10:42:50,777 INFO app Wood application startup

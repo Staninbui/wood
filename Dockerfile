@@ -1,49 +1,51 @@
-# マルチステージビルドで最適化
+# 多阶段构建优化
 FROM python:3.11-slim as builder
 
-# 依存関係のインストール用
+# 依赖安装阶段
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
+COPY requirements/production.txt requirements/base.txt requirements/
+RUN pip install --no-cache-dir --user -r requirements/production.txt
 
-# 本番環境用イメージ
+# 生产环境镜像
 FROM python:3.11-slim
 
-# 必要なシステムパッケージをインストール
+# 安装必要的系统包
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# セキュリティ: 非rootユーザーで実行
+# 安全：使用非root用户
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 
-# 環境変数
+# 环境变量
 ENV PYTHONUNBUFFERED=True \
     PYTHONDONTWRITEBYTECODE=True \
     PATH="/home/appuser/.local/bin:$PATH" \
     APP_HOME=/app \
     PYTHONHTTPSVERIFY=0 \
     CURL_CA_BUNDLE="" \
-    REQUESTS_CA_BUNDLE=""
+    REQUESTS_CA_BUNDLE="" \
+    FLASK_ENV=production
 
-# 作業ディレクトリ設定
+# 工作目录设置
 WORKDIR $APP_HOME
 
-# 依存関係をコピー
+# 复制依赖
 COPY --from=builder /root/.local /home/appuser/.local
 
-# アプリケーションコードをコピー
+# 复制应用代码
 COPY --chown=appuser:appgroup . .
 
-# 権限設定
-RUN chown -R appuser:appgroup $APP_HOME
+# 创建必要的目录
+RUN mkdir -p logs temp uploads && \
+    chown -R appuser:appgroup $APP_HOME
 
-# 非rootユーザーに切り替え
+# 切换到非root用户
 USER appuser
 
-# ヘルスチェック
+# 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
 
-# 启动完整应用，使用优化的配置
-CMD exec gunicorn --bind 0.0.0.0:${PORT:-8080} --workers 2 --worker-class gevent --worker-connections 500 --timeout 120 --log-level info app:app
+# 使用新的WSGI入口启动应用
+CMD exec gunicorn -c gunicorn.conf.py wsgi:application

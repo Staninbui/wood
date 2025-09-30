@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - ページが見つかりません | Wood</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #4a90e2 0%, #2c5aa0 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+        }
+        
+        .error-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            padding: 40px;
+            text-align: center;
+            max-width: 500px;
+            margin: 20px;
+        }
+        
+        .error-code {
+            font-size: 6rem;
+            font-weight: 300;
+            color: #4a90e2;
+            margin-bottom: 20px;
+        }
+        
+        .error-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+        
+        .error-message {
+            font-size: 1rem;
+            color: #666;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #4a90e2;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .btn:hover {
+            background: #2c5aa0;
+            transform: translateY(-2px);
+        }
+        
+        .home-icon {
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <div class="error-code">404</div>
+        <h1 class="error-title">ページが見つかりません</h1>
+        <p class="error-message">
+            申し訳ございませんが、お探しのページは存在しないか、移動された可能性があります。<br>
+            URLを確認するか、ホームページから再度アクセスしてください。
+        </p>
+        <a href="{{ url_for('main.index') }}" class="btn">
+            <span class="home-icon">🏠</span>
+            ホームに戻る
+        </a>
+    </div>
+</body>
+</html>
