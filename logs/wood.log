@@ -110,3 +110,27 @@ with app.app_context(). See the documentation for more information.
 2025-09-24 10:42:50,777 INFO app Wood application startup
 2025-09-24 10:42:50,777 INFO app Wood application startup
 2025-09-24 10:42:50,777 INFO app Wood application startup
+2025-09-30 10:38:57,720 INFO app Wood production startup
+2025-09-30 10:38:58,265 INFO app Wood application startup
+2025-09-30 10:38:58,265 INFO app Wood application startup
+2025-09-30 10:38:58,265 INFO app Wood application startup
+2025-09-30 10:38:58,265 INFO app Wood application startup
+2025-09-30 10:40:47,693 INFO app Wood production startup
+2025-09-30 10:40:47,912 INFO app Wood application startup
+2025-09-30 10:40:47,912 INFO app Wood application startup
+2025-09-30 10:40:47,912 INFO app Wood application startup
+2025-09-30 10:40:47,912 INFO app Wood application startup
+2025-09-30 10:41:01,879 INFO app.api.tasks 开始生成增强CSV报告，任务ID: task-20-23551113297923
+2025-09-30 10:41:01,879 INFO app.api.tasks 开始生成增强CSV报告，任务ID: task-20-23551113297923
+2025-09-30 10:41:02,319 INFO app.services.xml_service 从ZIP文件中提取到 139 个唯一ItemID
+2025-09-30 10:41:02,319 INFO app.services.xml_service 从ZIP文件中提取到 139 个唯一ItemID
+2025-09-30 10:41:02,319 INFO app.api.tasks 提取到 139 个ItemID
+2025-09-30 10:41:02,319 INFO app.api.tasks 提取到 139 个ItemID
+2025-09-30 10:41:02,320 INFO app.services.xml_service 开始批量处理 139 个ItemID，并发数: 4
+2025-09-30 10:41:02,320 INFO app.services.xml_service 开始批量处理 139 个ItemID，并发数: 4
+2025-09-30 10:41:30,998 INFO app.services.xml_service 批量处理完成 - 成功: 66, 失败: 0, 耗时: 28.68秒
+2025-09-30 10:41:30,998 INFO app.services.xml_service 批量处理完成 - 成功: 66, 失败: 0, 耗时: 28.68秒
+2025-09-30 10:41:31,010 INFO app.services.csv_service 增强CSV生成完成: /Users/stayang/Desktop/projects/wood/temp/enhanced_csv_task-20-23551113297923.csv, 包含 66 条记录
+2025-09-30 10:41:31,010 INFO app.services.csv_service 增强CSV生成完成: /Users/stayang/Desktop/projects/wood/temp/enhanced_csv_task-20-23551113297923.csv, 包含 66 条记录
+2025-09-30 10:41:31,010 INFO app.api.tasks 增强CSV生成完成，成功处理 66 条记录
+2025-09-30 10:41:31,010 INFO app.api.tasks 增强CSV生成完成，成功处理 66 条记录
