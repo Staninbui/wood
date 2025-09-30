@@ -57,7 +57,7 @@ def generate_report():
         'data': {
             'task_status': 'IN_PROGRESS',
             'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'summary': 'eBay商品在庫レポートを生成中です。タスクの完了をお待ちください。'
+            'summary': 'eBay商品在庫レポートを生成中です。注意：アクティブな商品がない場合、空のレポートが生成される可能性があります。'
         }
     }), 202
 

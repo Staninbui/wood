@@ -254,7 +254,7 @@ def _process_enhanced_csv_async(task_id, token_info, config):
         item_ids = xml_service.extract_item_ids_from_zip(zip_content)
         
         if not item_ids:
-            progress_manager.complete_task(task_id, success=False, message='ZIPファイルからItemIDを抽出できませんでした')
+            progress_manager.complete_task(task_id, success=False, message='レポートにアクティブな商品データが見つかりません。商品が存在するか、報告条件を満たしているかご確認ください。')
             return
         
         logger.info(f"提取到 {len(item_ids)} 个ItemID")

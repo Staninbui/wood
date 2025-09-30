@@ -50,6 +50,15 @@ class XMLService:
                 # 定义命名空间
                 ns = {'ebay': 'urn:ebay:apis:eBLBaseComponents'}
                 
+                # 检查是否为空报告
+                ack_elem = root.find('.//ebay:Ack', ns)
+                if ack_elem is not None and ack_elem.text == 'Success':
+                    # 检查是否有实际的商品数据
+                    sku_details = root.findall('.//ebay:SKUDetails', ns)
+                    if not sku_details:
+                        logger.warning("报告生成成功，但没有找到任何商品数据。可能的原因：1) 没有活跃的商品 2) 商品不符合报告条件 3) 报告正在生成中")
+                        return []
+                
                 # 方法1: 查找SKUDetails中的ItemID
                 for sku_detail in root.findall('.//ebay:SKUDetails', ns):
                     item_id_elem = sku_detail.find('ebay:ItemID', ns)
